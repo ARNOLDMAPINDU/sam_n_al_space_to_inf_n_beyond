@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Varaidzo & Arnold: Our Heartbeat</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body class="mood-default">
+    <!-- Auth Overlay (Login) -->
+    <div id="auth-overlay" class="auth-overlay">
+        <div class="glass-box auth-card">
+            <h1 class="title">Our Little Space</h1>
+            <p>Welcome to our heartbeat...</p>
+            <div class="auth-input-group">
+                <input type="text" id="auth-name-input" placeholder="What is your name?">
+                <button id="login-btn" class="mood-btn">Step Inside ❤️</button>
+            </div>
+            <p id="auth-error" class="error-msg"></p>
+        </div>
+    </div>
+
+    <div id="main-app" class="hidden">
+        <div class="background-visuals">
+            <div id="visual-heart-container"></div>
+        </div>
+
+        <main class="container">
+            <header>
+                <div class="user-info">
+                    <span id="logged-user-display">Varaidzo Samantha</span>
+                    <button id="logout-btn" class="mini-btn">Logout</button>
+                </div>
+                <h1 class="title">Varaidzo Samantha & Arnold Alpha</h1>
+                <p class="subtitle">Our Heartbeat & Little Space</p>
+            </header>
+
+        <section class="mood-section">
+            <h2>How are you feeling, my love?</h2>
+            <div class="mood-selector">
+                <button class="mood-btn" data-mood="happy">😊 Happy</button>
+                <button class="mood-btn" data-mood="missing">💖 Missing You</button>
+                <button class="mood-btn" data-mood="tired">😴 Tired</button>
+                <button class="mood-btn" data-mood="hungry">🍕 Hungry</button>
+                <button class="mood-btn" data-mood="grumpy">😖 Grumpy</button>
+                <button class="mood-btn" data-mood="bored">🎬 Bored</button>
+            </div>
+            
+            <div class="custom-mood-area">
+                <input type="text" id="custom-mood-input" placeholder="Feeling something else? Type it here...">
+                <button id="custom-mood-btn" class="mini-btn">Share My Mood</button>
+            </div>
+        </section>
+
+        <section class="response-section">
+            <div id="response-box" class="glass-box">
+                <p id="arnold-message">Select a mood to see my message for you, Samantha...</p>
+            </div>
+        </section>
+
+        <section class="visual-art-section">
+            <div id="generated-image" class="art-frame">
+                <div class="art-content">
+                    <p>Tap a mood to generate our "Mood Postcard"</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="chat-section">
+            <div class="glass-box chat-container">
+                <div class="chat-header">
+                    <h3>Our Private Chat</h3>
+                    <div class="chat-user-status">
+                        <span id="chat-user-label">Logged in as: Varaidzo</span>
+                    </div>
+                </div>
+                <div id="chat-messages" class="chat-messages">
+                    <!-- Messages will appear here -->
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Type a sweet message..." />
+                    <button id="send-btn" class="mood-btn">Send</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- New Play & Games Section -->
+        <section class="play-section">
+            <div class="glass-box quest-container">
+                <div class="quest-header">
+                    <h3>Daily Co-op Quests 🎮</h3>
+                    <div class="level-badge">Level <span id="love-level">1</span></div>
+                </div>
+                <div class="progress-bar-container">
+                    <div id="love-progress" class="progress-bar" style="width: 0%"></div>
+                </div>
+                
+                <div id="daily-quest-card" class="quest-card">
+                    <p class="quest-tag">TODAY'S QUEST</p>
+                    <h4 id="quest-title">Loading quest...</h4>
+                    <p id="quest-desc">Loading instructions...</p>
+                    
+                    <div class="quest-check-area">
+                        <button id="check-varaidzo" class="quest-check-btn">Varaidzo Done</button>
+                        <button id="check-arnold" class="quest-check-btn">Arnold Done</button>
+                    </div>
+                </div>
+
+                <div class="mini-game">
+                    <h4>The Sync Heart 💖</h4>
+                    <p>Both of you must tap the heart to "Sync" your energy!</p>
+                    <button id="sync-heart-btn" class="sync-heart">❤️</button>
+                    <p id="sync-status">Waiting for Arnold & Varaidzo...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- New Growth Features -->
+        <div class="growth-grid">
+            <!-- Connection Prompts -->
+            <section class="growth-card connection-prompts">
+                <div class="glass-box">
+                    <h3>Deep Connection</h3>
+                    <p id="prompt-display">Ready for a deep conversation?</p>
+                    <button id="next-prompt-btn" class="mood-btn">Get New Prompt ✨</button>
+                </div>
+            </section>
+
+            <!-- Milestones & Countdown -->
+            <section class="growth-card milestones">
+                <div class="glass-box">
+                    <h3>Our Next Milestone</h3>
+                    <div id="countdown-display">
+                        <span class="days">00</span> Days <span class="hours">00</span> Hours
+                    </div>
+                    <p id="milestone-name">Loading our next big day...</p>
+                </div>
+            </section>
+
+            <!-- Gratitude Jar -->
+            <section class="growth-card gratitude-jar">
+                <div class="glass-box">
+                    <h3>Gratitude Jar 🍯</h3>
+                    <div id="gratitude-list" class="scroll-list"></div>
+                    <div class="input-group">
+                        <input type="text" id="gratitude-input" placeholder="What are you grateful for today?">
+                        <button id="add-gratitude-btn" class="mini-btn">Add</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bucket List -->
+            <section class="growth-card bucket-list">
+                <div class="glass-box">
+                    <h3>Our Bucket List ✈️</h3>
+                    <div id="bucket-list" class="scroll-list"></div>
+                    <div class="input-group">
+                        <input type="text" id="bucket-input" placeholder="Add a new adventure...">
+                        <button id="add-bucket-btn" class="mini-btn">Add</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
