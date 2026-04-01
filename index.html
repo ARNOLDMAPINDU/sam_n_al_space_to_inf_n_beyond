@@ -32,6 +32,7 @@
                     <div class="status-group">
                         <span>Me: <span id="logged-user-display">...</span></span>
                         <span>Partner: <span id="partner-status" class="offline">Offline</span></span>
+                        <span id="sync-indicator" class="sync-indicator">Checking connection...</span>
                     </div>
                     <button id="logout-btn" class="mini-btn">Logout</button>
                 </div>
@@ -170,6 +171,15 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Modern Firebase SDK -->
+    <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js"
+      }
+    }
+    </script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>

@@ -116,6 +116,21 @@ body {
     align-items: center;
 }
 
+.sync-indicator {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.1);
+}
+
+.sync-indicator.online {
+    color: #4caf50;
+}
+
+.sync-indicator.error {
+    color: #f44336;
+}
+
 #partner-status {
     color: #4caf50;
     font-weight: 800;
