@@ -48,7 +48,7 @@ const moodData = {
     }
 };
 
-const buttons = document.querySelectorAll('.mood-btn');
+const buttons = document.querySelectorAll('.mood-selector .mood-btn');
 const messageEl = document.getElementById('arnold-message');
 const bodyEl = document.body;
 const artFrame = document.getElementById('generated-image');
@@ -61,7 +61,7 @@ let partnerName = "";
 buttons.forEach(btn => {
     btn.addEventListener('click', () => {
         const mood = btn.getAttribute('data-mood');
-        updateMyMood(mood);
+        if (mood) updateMyMood(mood);
     });
 });
 
@@ -73,11 +73,13 @@ function updateMyMood(mood, isCustom = false, customText = "") {
         label: customText
     } : moodData[mood];
 
+    if (!data) return; // Safety guard
+
     // Local UI update
     applyMoodUI(data, isCustom ? customText : mood);
 
     // Firebase Sync
-    if (db) {
+    if (db && currentUser) {
         db.ref('moods/' + currentUser.toLowerCase()).set({
             mood: isCustom ? customText : mood,
             timestamp: Date.now()
@@ -86,15 +88,20 @@ function updateMyMood(mood, isCustom = false, customText = "") {
 }
 
 function applyMoodUI(data, label) {
+    if (!data || !messageEl) return;
+
     messageEl.style.opacity = 0;
     setTimeout(() => {
         messageEl.textContent = data.message;
         messageEl.style.opacity = 1;
     }, 300);
 
-    bodyEl.className = data.class;
-    artFrame.style.backgroundImage = `url('${data.image}')`;
-    artFrame.querySelector('.art-content').innerHTML = `<span>${label.toUpperCase()} VIBES</span>`;
+    if (bodyEl) bodyEl.className = data.class || 'mood-default';
+    if (artFrame) {
+        artFrame.style.backgroundImage = `url('${data.image}')`;
+        const content = artFrame.querySelector('.art-content');
+        if (content) content.innerHTML = `<span>${(label || "").toUpperCase()} VIBES</span>`;
+    }
     createHearts();
 }
 
