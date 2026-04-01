@@ -110,6 +110,43 @@ body {
     color: #888;
 }
 
+.status-group {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+#partner-status {
+    color: #4caf50;
+    font-weight: 800;
+    transition: color 0.3s;
+}
+
+#partner-status.offline {
+    color: #999;
+}
+
+.partner-mood-alert {
+    background: rgba(255, 64, 129, 0.1);
+    border: 2px solid var(--accent-color);
+    padding: 1rem;
+    border-radius: 15px;
+    margin-bottom: 1.5rem;
+    width: 100%;
+    animation: alertPulse 2s infinite;
+    text-align: center;
+}
+
+@keyframes alertPulse {
+    0% { transform: scale(1); box-shadow: 0 0 0px var(--accent-color); }
+    50% { transform: scale(1.02); box-shadow: 0 0 15px rgba(255, 64, 129, 0.3); }
+    100% { transform: scale(1); box-shadow: 0 0 0px var(--accent-color); }
+}
+
+.partner-mood-alert span {
+    font-weight: 800;
+}
+
 .container {
     max-width: 800px;
     margin: 0 auto;

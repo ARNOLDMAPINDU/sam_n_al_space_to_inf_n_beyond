@@ -1,0 +1,15 @@
+{
+  "name": "arnold-varaidzo-space",
+  "version": "1.0.0",
+  "description": "Real-time heartbeat space for Varaidzo & Arnold",
+  "main": "script.js",
+  "scripts": {
+    "deploy": "git add .; git commit -m \"Update webapp\"; git push origin main"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ARNOLDMAPINDU/sam_n_al_space_to_inf_n_beyond.git"
+  },
+  "author": "Arnold Alpha",
+  "license": "ISC"
+}

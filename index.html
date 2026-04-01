@@ -29,7 +29,10 @@
         <main class="container">
             <header>
                 <div class="user-info">
-                    <span id="logged-user-display">Varaidzo Samantha</span>
+                    <div class="status-group">
+                        <span>Me: <span id="logged-user-display">...</span></span>
+                        <span>Partner: <span id="partner-status" class="offline">Offline</span></span>
+                    </div>
                     <button id="logout-btn" class="mini-btn">Logout</button>
                 </div>
                 <h1 class="title">Varaidzo Samantha & Arnold Alpha</h1>
@@ -55,7 +58,10 @@
 
         <section class="response-section">
             <div id="response-box" class="glass-box">
-                <p id="arnold-message">Select a mood to see my message for you, Samantha...</p>
+                <div id="partner-mood-alert" class="partner-mood-alert hidden">
+                    <span id="partner-name-label">Partner</span> is feeling <span id="partner-mood-text">...</span> ❤️
+                </div>
+                <p id="arnold-message">Select a mood to see my message for you...</p>
             </div>
         </section>
 
