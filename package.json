@@ -4,7 +4,7 @@
   "description": "Real-time heartbeat space for Varaidzo & Arnold",
   "main": "script.js",
   "scripts": {
-    "deploy": "git add .; git commit -m \"Update webapp\"; git push origin main"
+    "deploy": "git add . && git commit -m \"Update webapp with Firebase config\" && git push origin main"
   },
   "repository": {
     "type": "git",

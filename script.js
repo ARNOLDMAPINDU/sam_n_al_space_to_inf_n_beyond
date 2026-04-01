@@ -1,12 +1,4 @@
 // --- FIREBASE CONFIGURATION ---
-// Replace the values below with your project's config from Firebase Console
-// Firebase Console > Project Settings > General > Your apps > SDK setup and configuration > Config
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDACQBpFiOW3k_SUMsqYNsIld9jgNzOwkc",
   authDomain: "our-space-857e7.firebaseapp.com",
@@ -16,9 +8,6 @@ const firebaseConfig = {
   messagingSenderId: "636094347349",
   appId: "1:636094347349:web:6be1cec2451e6a917a7cdc"
 };
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase
 if (typeof firebase !== 'undefined') {
