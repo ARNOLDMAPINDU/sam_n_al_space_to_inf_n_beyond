@@ -1,4 +1,4 @@
-// 1. MODULE IMPORTS (Must be at the top)
+// 1. MODULE IMPORTS (Must be at the very top)
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue, push, limitToLast, onChildAdded, remove, onDisconnect, query } from "firebase/database";
 
@@ -78,14 +78,15 @@ function updateMyMood(mood, isCustom = false, customText = "") {
 
     if (!data) return;
 
-    // Firebase Sync (Push My Mood)
-    set(ref(db, 'moods/' + currentUser.toLowerCase()), {
-        mood: isCustom ? customText : mood,
-        moodClass: data.class,
-        timestamp: Date.now()
-    });
+    // Firebase Sync
+    if (db && currentUser) {
+        set(ref(db, 'moods/' + currentUser.toLowerCase()), {
+            mood: isCustom ? customText : mood,
+            moodClass: data.class,
+            timestamp: Date.now()
+        });
+    }
 
-    // Also update UI for myself immediately
     applyMoodUI(data, isCustom ? customText : mood);
 }
 
@@ -179,7 +180,9 @@ function showApp(userName) {
 }
 
 function setupSync() {
-    // 1. Connection Heartbeat
+    if (!db) return;
+
+    // 1. Connection & Presence
     const connectedRef = ref(db, '.info/connected');
     onValue(connectedRef, (snap) => {
         if (snap.val() === true) {
@@ -187,24 +190,25 @@ function setupSync() {
                 syncIndicator.textContent = "Connected ❤️";
                 syncIndicator.className = "sync-indicator online";
             }
-            const statusRef = ref(db, 'status/' + currentUser.toLowerCase());
-            onDisconnect(statusRef).set('offline');
-            set(statusRef, 'online');
+            const myStatusRef = ref(db, 'status/' + currentUser.toLowerCase());
+            onDisconnect(myStatusRef).set('offline');
+            set(myStatusRef, 'online');
         } else {
             if(syncIndicator) {
-                syncIndicator.textContent = "Connecting...";
+                syncIndicator.textContent = "Reconnecting...";
                 syncIndicator.className = "sync-indicator error";
             }
         }
     });
 
-    // 2. Partner Status Listener
+    // 2. Monitor Partner Status
     onValue(ref(db, 'status/' + partnerName.toLowerCase()), (snap) => {
         const status = snap.val() || 'offline';
         const el = document.getElementById('partner-status');
         if (el) {
             el.textContent = status.charAt(0).toUpperCase() + status.slice(1);
-            el.className = status === 'online' ? '' : 'offline';
+            el.className = status === 'online' ? 'online' : 'offline';
+            el.style.color = status === 'online' ? "#4caf50" : "#999";
         }
     });
 
@@ -216,7 +220,7 @@ function setupSync() {
         const arnold = moods.arnold;
         const varaidzo = moods.varaidzo;
         
-        // Use whichever mood was updated LAST
+        // Symmetrical: Both see the background of the LATEST mood sent by either
         const latest = (!arnold) ? varaidzo : (!varaidzo) ? arnold :
                        (arnold.timestamp > varaidzo.timestamp) ? arnold : varaidzo;
 
@@ -224,9 +228,9 @@ function setupSync() {
             bodyEl.className = latest.moodClass || 'mood-default';
         }
 
-        // Partner notification if it's new (last 10 seconds)
+        // Notification for partner's specific mood
         const partnerData = moods[partnerName.toLowerCase()];
-        if (partnerData && (Date.now() - partnerData.timestamp < 10000)) {
+        if (partnerData && (Date.now() - partnerData.timestamp < 15000)) {
             const alertEl = document.getElementById('partner-mood-alert');
             const textEl = document.getElementById('partner-mood-text');
             const nameEl = document.getElementById('partner-name-label');
@@ -239,13 +243,13 @@ function setupSync() {
         }
     });
 
-    // 4. Chat Listener
+    // 4. Chat Sync
     const chatRef = query(ref(db, 'chat'), limitToLast(50));
     onChildAdded(chatRef, (snap) => {
         displayMessage(snap.val());
     });
 
-    // 5. Shared Lists & Quests
+    // 5. Quests Sync
     onValue(ref(db, 'quests'), (snap) => {
         const state = snap.val();
         if (state) {
@@ -254,6 +258,7 @@ function setupSync() {
         }
     });
 
+    // 6. Gratitude & Bucket List Sync
     onValue(ref(db, 'gratitude'), (snap) => {
         const items = [];
         snap.forEach(child => { items.push({ id: child.key, text: child.val() }); });
@@ -268,7 +273,7 @@ function setupSync() {
 }
 
 function logout() {
-    set(ref(db, 'status/' + currentUser.toLowerCase()), 'offline');
+    if(db) set(ref(db, 'status/' + currentUser.toLowerCase()), 'offline');
     localStorage.removeItem('current-session-user');
     location.reload();
 }
@@ -277,7 +282,6 @@ if (loginBtn) loginBtn.addEventListener('click', login);
 if (authInput) authInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') login(); });
 if (logoutBtn) logoutBtn.addEventListener('click', logout);
 
-// Initial Execution
 window.onload = () => {
     checkAuth();
     createHearts();
@@ -292,13 +296,11 @@ const sendBtn = document.getElementById('send-btn');
 function sendMessage() {
     const text = chatInput.value.trim();
     if (text === '') return;
-
     const messageObj = {
         sender: currentUser,
         text: text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-
     push(ref(db, 'chat'), messageObj);
     chatInput.value = '';
 }
@@ -322,7 +324,7 @@ function displayMessage(msg) {
 if (sendBtn) sendBtn.addEventListener('click', sendMessage);
 if (chatInput) chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 
-// --- List Helper ---
+// --- Activity Helpers ---
 function renderFirebaseList(listId, items, dbPath) {
     const list = document.getElementById(listId);
     if (!list) return;
@@ -335,7 +337,6 @@ function renderFirebaseList(listId, items, dbPath) {
     });
 }
 
-// --- Quest Logic ---
 const dailyQuests = [
     { title: "Our Signature Catchphrase", desc: "One of you say 'To Infinity' and the other must respond 'and Beyond!' in the chat." },
     { title: "Compliment Champion", desc: "Give each other 3 genuine compliments today." },
@@ -345,7 +346,7 @@ let questState = { date: "", varaidzo: false, arnold: false, index: 0 };
 
 function loadDailyQuest() {
     const today = new Date().toDateString();
-    if (questState.date !== today && currentUser === "Arnold") {
+    if (db && questState.date !== today && currentUser === "Arnold") {
         set(ref(db, 'quests'), { date: today, varaidzo: false, arnold: false, index: Math.floor(Math.random() * dailyQuests.length) });
     }
 }
@@ -375,14 +376,12 @@ document.getElementById('check-arnold')?.addEventListener('click', () => {
     if (currentUser === "Arnold") set(ref(db, 'quests/arnold'), !questState.arnold);
 });
 
-// --- Sync Heart ---
 const syncBtn = document.getElementById('sync-heart-btn');
 const syncStatus = document.getElementById('sync-status');
 if (syncBtn) {
     syncBtn.addEventListener('click', () => {
         const myKey = currentUser.toLowerCase() === 'arnold' ? 'arnold' : 'varaidzo';
         set(ref(db, 'sync/' + myKey), true);
-        
         onValue(ref(db, 'sync'), (snap) => {
             const sync = snap.val();
             if (sync && sync.arnold && sync.varaidzo) {
@@ -394,14 +393,11 @@ if (syncBtn) {
                     syncBtn.classList.remove('synced');
                     if(syncStatus) syncStatus.textContent = "Waiting for Arnold & Varaidzo...";
                 }, 4000);
-            } else {
-                if(syncStatus) syncStatus.innerHTML = "<span style='color: #ff4081; font-weight: 600;'>TO INFINITY...</span>";
             }
         }, { onlyOnce: true });
     });
 }
 
-// Add Item Handlers
 document.getElementById('add-gratitude-btn')?.addEventListener('click', () => {
     const val = document.getElementById('gratitude-input')?.value.trim();
     if (val) { push(ref(db, 'gratitude'), val); document.getElementById('gratitude-input').value = ''; }
