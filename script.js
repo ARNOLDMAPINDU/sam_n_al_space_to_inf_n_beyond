@@ -358,7 +358,7 @@ let questState = { date: "", varaidzo: false, arnold: false, index: 0 };
 
 function loadDailyQuest() {
     const today = new Date().toDateString();
-    if (questState.date !== today && currentUser.toLowerCase() === "arnold") {
+    if (db && questState.date !== today && currentUser.toLowerCase() === "arnold") {
         const newState = {
             date: today,
             varaidzo: false,
@@ -372,29 +372,34 @@ function loadDailyQuest() {
 
 function updateQuestUI() {
     const quest = dailyQuests[questState.index];
-    document.getElementById('quest-title').textContent = quest.title;
-    document.getElementById('quest-desc').textContent = quest.desc;
+    if (document.getElementById('quest-title')) document.getElementById('quest-title').textContent = quest.title;
+    if (document.getElementById('quest-desc')) document.getElementById('quest-desc').textContent = quest.desc;
     updateQuestButtons();
 }
 
 function updateQuestButtons() {
     const vBtn = document.getElementById('check-varaidzo');
     const aBtn = document.getElementById('check-arnold');
+    if (!vBtn || !aBtn) return;
     if (questState.varaidzo) vBtn.classList.add('completed'); else vBtn.classList.remove('completed');
     if (questState.arnold) aBtn.classList.add('completed'); else aBtn.classList.remove('completed');
 }
 
-document.getElementById('check-varaidzo').addEventListener('click', () => {
-    if (currentUser.toLowerCase().includes('varaidzo') || currentUser.toLowerCase().includes('samantha')) {
-        db.ref('quests/varaidzo').set(!questState.varaidzo);
-    }
-});
+if (document.getElementById('check-varaidzo')) {
+    document.getElementById('check-varaidzo').addEventListener('click', () => {
+        if (db && (currentUser.toLowerCase().includes('varaidzo') || currentUser.toLowerCase().includes('samantha'))) {
+            db.ref('quests/varaidzo').set(!questState.varaidzo);
+        }
+    });
+}
 
-document.getElementById('check-arnold').addEventListener('click', () => {
-    if (currentUser.toLowerCase().includes('arnold')) {
-        db.ref('quests/arnold').set(!questState.arnold);
-    }
-});
+if (document.getElementById('check-arnold')) {
+    document.getElementById('check-arnold').addEventListener('click', () => {
+        if (db && currentUser.toLowerCase().includes('arnold')) {
+            db.ref('quests/arnold').set(!questState.arnold);
+        }
+    });
+}
 
 // Level & Progress (Synced)
 let loveLevelData = { level: 1, exp: 0 };
