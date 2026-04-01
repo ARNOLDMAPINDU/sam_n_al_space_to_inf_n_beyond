@@ -14,14 +14,8 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app, db;
-try {
-    app = initializeApp(firebaseConfig);
-    db = getDatabase(app);
-    console.log("✅ Firebase Initialized");
-} catch (e) {
-    console.error("❌ Firebase Init Error:", e);
-}
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 const moodData = {
     happy: {
@@ -84,17 +78,15 @@ function updateMyMood(mood, isCustom = false, customText = "") {
 
     if (!data) return;
 
-    // Local UI update first for speed
-    applyMoodUI(data, isCustom ? customText : mood);
+    // Firebase Sync (Push My Mood)
+    set(ref(db, 'moods/' + currentUser.toLowerCase()), {
+        mood: isCustom ? customText : mood,
+        moodClass: data.class,
+        timestamp: Date.now()
+    });
 
-    // Firebase Sync
-    if (db && currentUser) {
-        set(ref(db, 'moods/' + currentUser.toLowerCase()), {
-            mood: isCustom ? customText : mood,
-            moodClass: data.class,
-            timestamp: Date.now()
-        });
-    }
+    // Also update UI for myself immediately
+    applyMoodUI(data, isCustom ? customText : mood);
 }
 
 function applyMoodUI(data, label) {
@@ -187,8 +179,6 @@ function showApp(userName) {
 }
 
 function setupSync() {
-    if (!db) return;
-
     // 1. Connection Heartbeat
     const connectedRef = ref(db, '.info/connected');
     onValue(connectedRef, (snap) => {
@@ -234,7 +224,7 @@ function setupSync() {
             bodyEl.className = latest.moodClass || 'mood-default';
         }
 
-        // Partner notification
+        // Partner notification if it's new (last 10 seconds)
         const partnerData = moods[partnerName.toLowerCase()];
         if (partnerData && (Date.now() - partnerData.timestamp < 10000)) {
             const alertEl = document.getElementById('partner-mood-alert');
@@ -278,7 +268,7 @@ function setupSync() {
 }
 
 function logout() {
-    if(db) set(ref(db, 'status/' + currentUser.toLowerCase()), 'offline');
+    set(ref(db, 'status/' + currentUser.toLowerCase()), 'offline');
     localStorage.removeItem('current-session-user');
     location.reload();
 }
@@ -301,7 +291,7 @@ const sendBtn = document.getElementById('send-btn');
 
 function sendMessage() {
     const text = chatInput.value.trim();
-    if (text === '' || !db) return;
+    if (text === '') return;
 
     const messageObj = {
         sender: currentUser,
@@ -355,7 +345,7 @@ let questState = { date: "", varaidzo: false, arnold: false, index: 0 };
 
 function loadDailyQuest() {
     const today = new Date().toDateString();
-    if (db && questState.date !== today && currentUser === "Arnold") {
+    if (questState.date !== today && currentUser === "Arnold") {
         set(ref(db, 'quests'), { date: today, varaidzo: false, arnold: false, index: Math.floor(Math.random() * dailyQuests.length) });
     }
 }
@@ -378,11 +368,11 @@ function updateQuestButtons() {
 }
 
 document.getElementById('check-varaidzo')?.addEventListener('click', () => {
-    if (db && currentUser === "Varaidzo") set(ref(db, 'quests/varaidzo'), !questState.varaidzo);
+    if (currentUser === "Varaidzo") set(ref(db, 'quests/varaidzo'), !questState.varaidzo);
 });
 
 document.getElementById('check-arnold')?.addEventListener('click', () => {
-    if (db && currentUser === "Arnold") set(ref(db, 'quests/arnold'), !questState.arnold);
+    if (currentUser === "Arnold") set(ref(db, 'quests/arnold'), !questState.arnold);
 });
 
 // --- Sync Heart ---
@@ -390,7 +380,6 @@ const syncBtn = document.getElementById('sync-heart-btn');
 const syncStatus = document.getElementById('sync-status');
 if (syncBtn) {
     syncBtn.addEventListener('click', () => {
-        if (!db) return;
         const myKey = currentUser.toLowerCase() === 'arnold' ? 'arnold' : 'varaidzo';
         set(ref(db, 'sync/' + myKey), true);
         
@@ -415,9 +404,9 @@ if (syncBtn) {
 // Add Item Handlers
 document.getElementById('add-gratitude-btn')?.addEventListener('click', () => {
     const val = document.getElementById('gratitude-input')?.value.trim();
-    if (val && db) { push(ref(db, 'gratitude'), val); document.getElementById('gratitude-input').value = ''; }
+    if (val) { push(ref(db, 'gratitude'), val); document.getElementById('gratitude-input').value = ''; }
 });
 document.getElementById('add-bucket-btn')?.addEventListener('click', () => {
     const val = document.getElementById('bucket-input')?.value.trim();
-    if (val && db) { push(ref(db, 'bucketlist'), val); document.getElementById('bucket-input').value = ''; }
+    if (val) { push(ref(db, 'bucketlist'), val); document.getElementById('bucket-input').value = ''; }
 });
