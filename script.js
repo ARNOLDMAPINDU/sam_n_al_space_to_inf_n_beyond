@@ -367,15 +367,34 @@ const mediaInput = document.getElementById('media-input');
 console.log("Chat Elements Init:", { chatMessages, chatInput, sendBtn, mediaBtn, mediaInput });
 
 function sendMessage() {
+    console.log("sendMessage called");
     const text = chatInput.value.trim();
-    if (text === '') return;
+    if (text === '') {
+        console.log("sendMessage: empty text, ignoring");
+        return;
+    }
+    
+    if (!currentUser) {
+        console.error("sendMessage: No currentUser!");
+        return;
+    }
+
     const messageObj = {
         sender: currentUser,
         text: text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
-    push(ref(db, 'chat'), messageObj);
-    chatInput.value = '';
+    
+    console.log("Sending message object:", messageObj);
+    
+    push(ref(db, 'chat'), messageObj)
+        .then(() => {
+            console.log("Message sent successfully!");
+            chatInput.value = '';
+        })
+        .catch((err) => {
+            console.error("Firebase push error:", err);
+        });
 }
 
 function displayMessage(msg) {
