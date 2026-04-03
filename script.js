@@ -361,6 +361,10 @@ window.onload = () => {
 const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send-btn');
+const mediaBtn = document.getElementById('media-btn');
+const mediaInput = document.getElementById('media-input');
+
+console.log("Chat Elements Init:", { chatMessages, chatInput, sendBtn, mediaBtn, mediaInput });
 
 function sendMessage() {
     const text = chatInput.value.trim();
@@ -411,32 +415,39 @@ if (sendBtn) sendBtn.addEventListener('click', sendMessage);
 if (chatInput) chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 
 // --- Media Upload Logic ---
-const mediaBtn = document.getElementById('media-btn');
-const mediaInput = document.getElementById('media-input');
-
 if (mediaBtn) {
-    mediaBtn.addEventListener('click', () => mediaInput.click());
+    mediaBtn.addEventListener('click', () => {
+        console.log("Media button clicked. Triggering input...");
+        if (mediaInput) mediaInput.click();
+        else console.error("mediaInput is null!");
+    });
 }
 
 if (mediaInput) {
     mediaInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
+        console.log("File detected in input change:", file);
         if (file) handleMediaUpload(file);
     });
 }
 
 async function handleMediaUpload(file) {
-    if (!currentUser || !storage) return;
+    console.log("handleMediaUpload triggered for:", file.name);
+    if (!currentUser || !storage) {
+        console.error("Missing currentUser or storage", { currentUser, storage: !!storage });
+        return;
+    }
     
-    // Show a temporary "uploading" state in the UI if you want
     const tempId = Date.now();
     const storagePath = `chat_media/${tempId}_${file.name}`;
     const storageRef = sRef(storage, storagePath);
     
     try {
         syncIndicator.textContent = "Uploading media... ⏳";
+        console.log("Uploading to:", storagePath);
         const snapshot = await uploadBytes(storageRef, file);
         const downloadUrl = await getDownloadURL(snapshot.ref);
+        console.log("Upload success. URL:", downloadUrl);
         
         const messageObj = {
             sender: currentUser,
@@ -450,7 +461,7 @@ async function handleMediaUpload(file) {
         syncIndicator.textContent = "Connected ❤️";
         mediaInput.value = ""; // Clear input
     } catch (error) {
-        console.error("Upload failed:", error);
+        console.error("Upload failed details:", error);
         syncIndicator.textContent = "Upload failed ❌";
         setTimeout(() => syncIndicator.textContent = "Connected ❤️", 3000);
     }
