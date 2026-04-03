@@ -80,11 +80,13 @@ function updateMyMood(mood, isCustom = false, customText = "") {
 
     // Firebase Sync
     if (db && currentUser) {
-        set(ref(db, 'moods/' + currentUser.toLowerCase()), {
+        const moodObj = {
             mood: isCustom ? customText : mood,
             moodClass: data.class,
             timestamp: Date.now()
-        });
+        };
+        set(ref(db, 'moods/' + currentUser.toLowerCase()), moodObj);
+        push(ref(db, 'moodHistory/' + currentUser.toLowerCase()), moodObj);
     }
 
     applyMoodUI(data, isCustom ? customText : mood);
@@ -191,7 +193,11 @@ function setupSync() {
                 syncIndicator.className = "sync-indicator online";
             }
             const myStatusRef = ref(db, 'status/' + currentUser.toLowerCase());
+            const myLastSeenRef = ref(db, 'lastSeen/' + currentUser.toLowerCase());
+            
             onDisconnect(myStatusRef).set('offline');
+            onDisconnect(myLastSeenRef).set(Date.now());
+            
             set(myStatusRef, 'online');
         } else {
             if(syncIndicator) {
@@ -201,14 +207,28 @@ function setupSync() {
         }
     });
 
-    // 2. Monitor Partner Status
+    // 2. Monitor Partner Status & Last Seen
     onValue(ref(db, 'status/' + partnerName.toLowerCase()), (snap) => {
         const status = snap.val() || 'offline';
         const el = document.getElementById('partner-status');
+        const lastSeenEl = document.getElementById('last-seen-display');
+        
         if (el) {
             el.textContent = status.charAt(0).toUpperCase() + status.slice(1);
             el.className = status === 'online' ? 'online' : 'offline';
             el.style.color = status === 'online' ? "#4caf50" : "#999";
+        }
+
+        if (status === 'offline') {
+            onValue(ref(db, 'lastSeen/' + partnerName.toLowerCase()), (lastSnap) => {
+                const ts = lastSnap.val();
+                if (ts && lastSeenEl) {
+                    lastSeenEl.textContent = `Last seen: ${formatTimeAgo(ts)}`;
+                    lastSeenEl.classList.remove('hidden');
+                }
+            }, { onlyOnce: true });
+        } else if (lastSeenEl) {
+            lastSeenEl.classList.add('hidden');
         }
     });
 
@@ -270,6 +290,53 @@ function setupSync() {
         snap.forEach(child => { items.push({ id: child.key, text: child.val() }); });
         renderFirebaseList('bucket-list', items, 'bucketlist');
     });
+
+    // 7. Mood History Sync (Partner's History)
+    const historyRef = query(ref(db, 'moodHistory/' + partnerName.toLowerCase()), limitToLast(10));
+    onValue(historyRef, (snap) => {
+        const history = [];
+        snap.forEach(child => { history.push(child.val()); });
+        renderMoodHistory(history.reverse());
+    });
+}
+
+function formatTimeAgo(timestamp) {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return new Date(timestamp).toLocaleDateString();
+}
+
+function renderMoodHistory(history) {
+    const list = document.getElementById('mood-history-list');
+    if (!list) return;
+    list.innerHTML = '';
+    history.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'mood-history-item';
+        const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(item.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
+        div.innerHTML = `
+            <span class="mood-label">${getMoodEmoji(item.mood)} ${item.mood}</span>
+            <span class="mood-time">${date}, ${time}</span>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function getMoodEmoji(mood) {
+    const emojis = {
+        happy: "😊",
+        missing: "💖",
+        tired: "😴",
+        hungry: "🍕",
+        grumpy: "😖",
+        bored: "🎬"
+    };
+    return emojis[mood.toLowerCase()] || "✨";
 }
 
 function logout() {

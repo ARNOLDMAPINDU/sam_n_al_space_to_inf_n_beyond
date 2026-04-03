@@ -31,7 +31,10 @@
                 <div class="user-info">
                     <div class="status-group">
                         <span>Me: <span id="logged-user-display">...</span></span>
-                        <span>Partner: <span id="partner-status" class="offline">Offline</span></span>
+                        <div class="partner-presence">
+                            <span>Partner: <span id="partner-status" class="offline">Offline</span></span>
+                            <span id="last-seen-display" class="last-seen hidden">Last seen: ...</span>
+                        </div>
                         <span id="sync-indicator" class="sync-indicator">Checking connection...</span>
                     </div>
                     <button id="logout-btn" class="mini-btn">Logout</button>
@@ -166,6 +169,15 @@
                         <input type="text" id="bucket-input" placeholder="Add a new adventure...">
                         <button id="add-bucket-btn" class="mini-btn">Add</button>
                     </div>
+                </div>
+            </section>
+
+            <!-- Feeling History -->
+            <section class="growth-card mood-history">
+                <div class="glass-box">
+                    <h3>Love's Feeling History 💖</h3>
+                    <div id="mood-history-list" class="scroll-list"></div>
+                    <p class="history-caption">A journey through our hearts...</p>
                 </div>
             </section>
         </div>

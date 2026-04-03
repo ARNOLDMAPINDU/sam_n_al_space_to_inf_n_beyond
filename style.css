@@ -293,6 +293,44 @@ header {
     }
 }
 
+.partner-presence {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.last-seen {
+    font-size: 0.65rem;
+    color: #aaa;
+    margin-top: -2px;
+}
+
+.history-caption {
+    font-size: 0.7rem;
+    color: #999;
+    font-style: italic;
+    margin-top: 1rem;
+}
+
+.mood-history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0.8rem !important;
+    border-left: 4px solid var(--accent-color);
+}
+
+.mood-history-item .mood-label {
+    font-weight: 600;
+    color: #444;
+}
+
+.mood-history-item .mood-time {
+    font-size: 0.7rem;
+    color: #888;
+}
+
 @media (max-width: 600px) {
     .title { font-size: 2rem; }
     .art-frame { width: 250px; height: 250px; }
