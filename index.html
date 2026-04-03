@@ -6,6 +6,16 @@
     <title>Varaidzo & Arnold: Our Heartbeat</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Modern Firebase SDK -->
+    <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js",
+        "firebase/storage": "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js"
+      }
+    }
+    </script>
 </head>
 <body class="mood-default">
     <!-- Auth Overlay (Login) -->
@@ -186,15 +196,6 @@
     </div>
 
     <!-- Modern Firebase SDK -->
-    <script type="importmap">
-    {
-      "imports": {
-        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js",
-        "firebase/storage": "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js"
-      }
-    }
-    </script>
     <script type="module" src="script.js"></script>
 </body>
 </html>

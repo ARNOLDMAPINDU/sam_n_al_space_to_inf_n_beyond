@@ -266,9 +266,13 @@ function setupSync() {
     });
 
     // 4. Chat Sync
+    console.log("Setting up Chat Sync...");
     const chatRef = query(ref(db, 'chat'), limitToLast(50));
     onChildAdded(chatRef, (snap) => {
+        console.log("New chat child added:", snap.val());
         displayMessage(snap.val());
+    }, (err) => {
+        console.error("Chat Sync Error:", err);
     });
 
     // 5. Quests Sync
@@ -358,56 +362,49 @@ window.onload = () => {
 };
 
 // --- Chat Logic ---
-const chatMessages = document.getElementById('chat-messages');
-const chatInput = document.getElementById('chat-input');
-const sendBtn = document.getElementById('send-btn');
-const mediaBtn = document.getElementById('media-btn');
-const mediaInput = document.getElementById('media-input');
-
-console.log("Chat Elements Init:", { chatMessages, chatInput, sendBtn, mediaBtn, mediaInput });
-
 function sendMessage() {
-    console.log("sendMessage called");
-    const text = chatInput.value.trim();
-    if (text === '') {
-        console.log("sendMessage: empty text, ignoring");
-        return;
-    }
+    const inputEl = document.getElementById('chat-input');
+    const text = inputEl ? inputEl.value.trim() : "";
     
+    if (text === '') return;
     if (!currentUser) {
-        console.error("sendMessage: No currentUser!");
+        console.error("No currentUser found during sendMessage");
         return;
     }
 
     const messageObj = {
         sender: currentUser,
         text: text,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        sentAt: Date.now()
     };
     
-    console.log("Sending message object:", messageObj);
+    console.log("Pushing message to Firebase:", messageObj);
     
     push(ref(db, 'chat'), messageObj)
         .then(() => {
-            console.log("Message sent successfully!");
-            chatInput.value = '';
+            if(inputEl) inputEl.value = '';
+            console.log("Message push success");
         })
-        .catch((err) => {
-            console.error("Firebase push error:", err);
-        });
+        .catch(err => console.error("Firebase Chat Push Error:", err));
 }
 
 function displayMessage(msg) {
-    if (!chatMessages) return;
+    const container = document.getElementById('chat-messages');
+    if (!container) {
+        console.error("Chat container #chat-messages not found!");
+        return;
+    }
     
-    // Check if message already exists (simple deduplication)
-    const existing = Array.from(chatMessages.children).some(m => 
-        m.querySelector('.sender-name')?.textContent.includes(msg.sender) && 
-        (m.querySelector('p')?.textContent === msg.text || m.querySelector('.media-content')?.src === msg.mediaUrl)
-    );
+    console.log("Rendering message:", msg);
+
+    // Simple deduplication based on sentAt or combination
+    const msgId = msg.sentAt || (msg.sender + msg.timestamp + (msg.text || msg.mediaUrl));
+    const existing = document.getElementById('msg-' + msgId);
     if (existing) return;
 
     const msgDiv = document.createElement('div');
+    msgDiv.id = 'msg-' + msgId;
     msgDiv.classList.add('message');
     msgDiv.classList.add(msg.sender === "Arnold" ? 'arnold' : 'varaidzo');
     
@@ -426,63 +423,55 @@ function displayMessage(msg) {
     }
 
     msgDiv.innerHTML = contentHtml;
-    chatMessages.appendChild(msgDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
 }
 
-if (sendBtn) sendBtn.addEventListener('click', sendMessage);
-if (chatInput) chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+// Re-attach listeners after DOM is guaranteed to be ready
+document.getElementById('send-btn')?.addEventListener('click', sendMessage);
+document.getElementById('chat-input')?.addEventListener('keypress', (e) => { 
+    if (e.key === 'Enter') sendMessage(); 
+});
 
 // --- Media Upload Logic ---
-if (mediaBtn) {
-    mediaBtn.addEventListener('click', () => {
-        console.log("Media button clicked. Triggering input...");
-        if (mediaInput) mediaInput.click();
-        else console.error("mediaInput is null!");
-    });
-}
+document.getElementById('media-btn')?.addEventListener('click', () => {
+    document.getElementById('media-input')?.click();
+});
 
-if (mediaInput) {
-    mediaInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        console.log("File detected in input change:", file);
-        if (file) handleMediaUpload(file);
-    });
-}
+document.getElementById('media-input')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) handleMediaUpload(file);
+});
 
 async function handleMediaUpload(file) {
-    console.log("handleMediaUpload triggered for:", file.name);
-    if (!currentUser || !storage) {
-        console.error("Missing currentUser or storage", { currentUser, storage: !!storage });
-        return;
-    }
+    if (!currentUser || !storage) return;
     
     const tempId = Date.now();
     const storagePath = `chat_media/${tempId}_${file.name}`;
     const storageRef = sRef(storage, storagePath);
     
     try {
-        syncIndicator.textContent = "Uploading media... ⏳";
-        console.log("Uploading to:", storagePath);
+        if(syncIndicator) syncIndicator.textContent = "Uploading media... ⏳";
         const snapshot = await uploadBytes(storageRef, file);
         const downloadUrl = await getDownloadURL(snapshot.ref);
-        console.log("Upload success. URL:", downloadUrl);
         
         const messageObj = {
             sender: currentUser,
             text: "",
             mediaUrl: downloadUrl,
             mediaType: file.type,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            sentAt: Date.now()
         };
         
         push(ref(db, 'chat'), messageObj);
-        syncIndicator.textContent = "Connected ❤️";
-        mediaInput.value = ""; // Clear input
+        if(syncIndicator) syncIndicator.textContent = "Connected ❤️";
+        const mInput = document.getElementById('media-input');
+        if(mInput) mInput.value = "";
     } catch (error) {
-        console.error("Upload failed details:", error);
-        syncIndicator.textContent = "Upload failed ❌";
-        setTimeout(() => syncIndicator.textContent = "Connected ❤️", 3000);
+        console.error("Upload failed:", error);
+        if(syncIndicator) syncIndicator.textContent = "Upload failed ❌";
+        setTimeout(() => { if(syncIndicator) syncIndicator.textContent = "Connected ❤️" }, 3000);
     }
 }
 
