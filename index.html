@@ -89,6 +89,8 @@
                     <!-- Messages will appear here -->
                 </div>
                 <div class="chat-input-area">
+                    <input type="file" id="media-input" accept="image/*,video/*" class="hidden">
+                    <button id="media-btn" class="mini-btn">📷</button>
                     <input type="text" id="chat-input" placeholder="Type a sweet message..." />
                     <button id="send-btn" class="mood-btn">Send</button>
                 </div>
@@ -188,7 +190,8 @@
     {
       "imports": {
         "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
-        "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js"
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js",
+        "firebase/storage": "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js"
       }
     }
     </script>

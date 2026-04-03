@@ -1,6 +1,7 @@
 // 1. MODULE IMPORTS (Must be at the very top)
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, onValue, push, limitToLast, onChildAdded, remove, onDisconnect, query } from "firebase/database";
+import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // --- FIREBASE CONFIGURATION ---
 const firebaseConfig = {
@@ -16,6 +17,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const storage = getStorage(app);
 
 const moodData = {
     happy: {
@@ -374,22 +376,85 @@ function sendMessage() {
 
 function displayMessage(msg) {
     if (!chatMessages) return;
+    
+    // Check if message already exists (simple deduplication)
     const existing = Array.from(chatMessages.children).some(m => 
-        m.querySelector('p')?.textContent === msg.text && 
-        m.querySelector('.sender-name')?.textContent.includes(msg.sender)
+        m.querySelector('.sender-name')?.textContent.includes(msg.sender) && 
+        (m.querySelector('p')?.textContent === msg.text || m.querySelector('.media-content')?.src === msg.mediaUrl)
     );
     if (existing) return;
 
     const msgDiv = document.createElement('div');
     msgDiv.classList.add('message');
     msgDiv.classList.add(msg.sender === "Arnold" ? 'arnold' : 'varaidzo');
-    msgDiv.innerHTML = `<span class="sender-name">${msg.sender} • ${msg.timestamp}</span><p>${msg.text}</p>`;
+    
+    let contentHtml = `<span class="sender-name">${msg.sender} • ${msg.timestamp}</span>`;
+    
+    if (msg.mediaUrl) {
+        if (msg.mediaType?.startsWith('image/')) {
+            contentHtml += `<img src="${msg.mediaUrl}" class="media-content" onclick="window.open('${msg.mediaUrl}', '_blank')">`;
+        } else if (msg.mediaType?.startsWith('video/')) {
+            contentHtml += `<video src="${msg.mediaUrl}" class="media-content" controls></video>`;
+        }
+    }
+    
+    if (msg.text) {
+        contentHtml += `<p>${msg.text}</p>`;
+    }
+
+    msgDiv.innerHTML = contentHtml;
     chatMessages.appendChild(msgDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 if (sendBtn) sendBtn.addEventListener('click', sendMessage);
 if (chatInput) chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+// --- Media Upload Logic ---
+const mediaBtn = document.getElementById('media-btn');
+const mediaInput = document.getElementById('media-input');
+
+if (mediaBtn) {
+    mediaBtn.addEventListener('click', () => mediaInput.click());
+}
+
+if (mediaInput) {
+    mediaInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) handleMediaUpload(file);
+    });
+}
+
+async function handleMediaUpload(file) {
+    if (!currentUser || !storage) return;
+    
+    // Show a temporary "uploading" state in the UI if you want
+    const tempId = Date.now();
+    const storagePath = `chat_media/${tempId}_${file.name}`;
+    const storageRef = sRef(storage, storagePath);
+    
+    try {
+        syncIndicator.textContent = "Uploading media... ⏳";
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        
+        const messageObj = {
+            sender: currentUser,
+            text: "",
+            mediaUrl: downloadUrl,
+            mediaType: file.type,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        
+        push(ref(db, 'chat'), messageObj);
+        syncIndicator.textContent = "Connected ❤️";
+        mediaInput.value = ""; // Clear input
+    } catch (error) {
+        console.error("Upload failed:", error);
+        syncIndicator.textContent = "Upload failed ❌";
+        setTimeout(() => syncIndicator.textContent = "Connected ❤️", 3000);
+    }
+}
 
 // --- Activity Helpers ---
 function renderFirebaseList(listId, items, dbPath) {
