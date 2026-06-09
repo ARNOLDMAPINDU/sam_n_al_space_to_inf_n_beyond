@@ -603,6 +603,88 @@ header {
     color: white;
 }
 
+/* Reply quote inside a sent/received message */
+.reply-quote {
+    background: rgba(0, 0, 0, 0.07);
+    border-left: 3px solid rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 0.35rem 0.65rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.reply-quote:hover { background: rgba(0, 0, 0, 0.12); }
+.message.arnold .reply-quote {
+    background: rgba(255, 255, 255, 0.18);
+    border-left-color: rgba(255, 255, 255, 0.55);
+}
+.message.arnold .reply-quote:hover { background: rgba(255, 255, 255, 0.28); }
+.reply-quote-sender {
+    font-weight: 700;
+    font-size: 0.72rem;
+    display: block;
+    margin-bottom: 0.1rem;
+}
+.reply-quote-text {
+    opacity: 0.82;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.3;
+}
+
+/* Reply preview bar above the input */
+.reply-preview {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.28);
+    border-left: 3px solid var(--accent-color);
+    border-radius: 10px;
+    padding: 0.4rem 0.8rem;
+    margin-bottom: 0.5rem;
+    gap: 0.6rem;
+    animation: fadeIn 0.2s ease;
+}
+.reply-preview.hidden { display: none; }
+.reply-preview-content {
+    flex-grow: 1;
+    overflow: hidden;
+}
+.reply-preview-sender {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent-color);
+    display: block;
+}
+.reply-preview-text {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+.reply-cancel-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    opacity: 0.55;
+    padding: 0 0.2rem;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.reply-cancel-btn:hover { opacity: 1; }
+
+/* Highlight flash when scrolling to a referenced message */
+@keyframes replyFlash {
+    0%   { background: rgba(255, 64, 129, 0.25); }
+    100% { background: transparent; }
+}
+.message.reply-flash { animation: replyFlash 0.9s ease forwards; }
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }

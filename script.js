@@ -62,6 +62,7 @@ const syncIndicator = document.getElementById('sync-indicator');
 let currentUser = "";
 let partnerName = "";
 let lastRenderedDate = null;
+let pendingReply = null;
 
 // ── Mood ───────────────────────────────────────────────────────────────────
 moodBtns.forEach(btn => {
@@ -377,8 +378,11 @@ function sendMessage() {
     const text = inputEl?.value.trim();
     if (!text || !currentUser) return;
 
-    push(ref(db, 'chat'), { sender: currentUser, text, sentAt: Date.now() })
-        .then(() => { if (inputEl) inputEl.value = ''; })
+    const msgData = { sender: currentUser, text, sentAt: Date.now() };
+    if (pendingReply) msgData.replyTo = pendingReply;
+
+    push(ref(db, 'chat'), msgData)
+        .then(() => { if (inputEl) inputEl.value = ''; cancelReply(); })
         .catch(err => console.error("Chat push error:", err));
 }
 
@@ -404,9 +408,20 @@ function displayMessage(msg) {
     const msgDiv = document.createElement('div');
     msgDiv.id = 'msg-' + msgId;
     msgDiv.classList.add('message', msg.sender === "Arnold" ? 'arnold' : 'varaidzo');
+    msgDiv.style.transition = 'transform 0.15s ease';
 
     const timeStr = formatMessageTime(msg.sentAt) || msg.timestamp || '';
     let html = `<span class="sender-name">${msg.sender} • ${timeStr}</span>`;
+
+    if (msg.replyTo) {
+        const preview = msg.replyTo.text
+            ? (msg.replyTo.text.length > 80 ? msg.replyTo.text.slice(0, 80) + '…' : msg.replyTo.text)
+            : (msg.replyTo.mediaType?.startsWith('image/') ? '📷 Photo' : '🎥 Video');
+        html += `<div class="reply-quote" data-ref="${msg.replyTo.id}">
+            <span class="reply-quote-sender">${msg.replyTo.sender}</span>
+            <span class="reply-quote-text">${preview}</span>
+        </div>`;
+    }
 
     if (msg.mediaUrl) {
         if (msg.mediaType?.startsWith('image/')) {
@@ -418,12 +433,88 @@ function displayMessage(msg) {
     if (msg.text) html += `<p>${msg.text}</p>`;
 
     msgDiv.innerHTML = html;
+
+    // Click reply-quote to scroll to the original message
+    msgDiv.querySelector('.reply-quote')?.addEventListener('click', () => {
+        scrollToMessage(msg.replyTo.id);
+    });
+
+    // Swipe-to-reply (touch)
+    let tStartX = 0, tStartY = 0;
+    msgDiv.addEventListener('touchstart', e => {
+        tStartX = e.touches[0].clientX;
+        tStartY = e.touches[0].clientY;
+    }, { passive: true });
+    msgDiv.addEventListener('touchmove', e => {
+        const dx = e.touches[0].clientX - tStartX;
+        const dy = e.touches[0].clientY - tStartY;
+        if (Math.abs(dx) > Math.abs(dy) && dx > 0) {
+            msgDiv.style.transform = `translateX(${Math.min(dx * 0.5, 70)}px)`;
+        }
+    }, { passive: true });
+    msgDiv.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].clientX - tStartX;
+        msgDiv.style.transform = '';
+        if (dx > 60) setReply(msg, msgId);
+    });
+
+    // Swipe-to-reply (mouse / desktop)
+    let mStartX = 0, mDragging = false;
+    msgDiv.addEventListener('mousedown', e => {
+        mStartX = e.clientX;
+        mDragging = true;
+    });
+    msgDiv.addEventListener('mousemove', e => {
+        if (!mDragging) return;
+        const dx = e.clientX - mStartX;
+        if (dx > 0) msgDiv.style.transform = `translateX(${Math.min(dx * 0.5, 70)}px)`;
+    });
+    msgDiv.addEventListener('mouseleave', () => {
+        if (mDragging) { msgDiv.style.transform = ''; mDragging = false; }
+    });
+    msgDiv.addEventListener('mouseup', e => {
+        if (!mDragging) return;
+        const dx = e.clientX - mStartX;
+        mDragging = false;
+        msgDiv.style.transform = '';
+        if (dx > 60) setReply(msg, msgId);
+    });
+
     container.appendChild(msgDiv);
     container.scrollTop = container.scrollHeight;
 }
 
+function setReply(msg, msgId) {
+    pendingReply = {
+        id: msgId,
+        sender: msg.sender,
+        text: msg.text || (msg.mediaType?.startsWith('image/') ? '📷 Photo' : '🎥 Video'),
+        mediaType: msg.mediaType || null,
+    };
+    document.getElementById('reply-preview-sender').textContent = msg.sender;
+    document.getElementById('reply-preview-text').textContent = pendingReply.text;
+    document.getElementById('reply-preview')?.classList.remove('hidden');
+    document.getElementById('chat-input')?.focus();
+}
+
+function cancelReply() {
+    pendingReply = null;
+    document.getElementById('reply-preview')?.classList.add('hidden');
+}
+
+function scrollToMessage(msgId) {
+    const el = document.getElementById('msg-' + msgId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.remove('reply-flash');
+    void el.offsetWidth; // force reflow to restart animation
+    el.classList.add('reply-flash');
+    setTimeout(() => el.classList.remove('reply-flash'), 950);
+}
+
 document.getElementById('send-btn')?.addEventListener('click', sendMessage);
 document.getElementById('chat-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+document.getElementById('reply-cancel-btn')?.addEventListener('click', cancelReply);
 
 // ── Media upload ───────────────────────────────────────────────────────────
 document.getElementById('media-btn')?.addEventListener('click', () => document.getElementById('media-input')?.click());
@@ -464,13 +555,16 @@ async function handleMediaUpload(file) {
         async () => {
             try {
                 const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-                await push(ref(db, 'chat'), {
+                const mediaMsg = {
                     sender: currentUser,
                     text: "",
                     mediaUrl: downloadUrl,
                     mediaType: file.type,
                     sentAt: Date.now()
-                });
+                };
+                if (pendingReply) mediaMsg.replyTo = pendingReply;
+                await push(ref(db, 'chat'), mediaMsg);
+                cancelReply();
                 setUploadUI('', false, true);
                 const mInput = document.getElementById('media-input');
                 if (mInput) mInput.value = "";
