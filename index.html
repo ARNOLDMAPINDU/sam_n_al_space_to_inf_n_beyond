@@ -98,11 +98,14 @@
                 <div id="chat-messages" class="chat-messages">
                     <!-- Messages will appear here -->
                 </div>
+                <div id="upload-progress-wrap" class="upload-progress-wrap hidden">
+                    <div id="upload-progress-bar" class="upload-progress-bar"></div>
+                </div>
                 <div class="chat-input-area">
                     <input type="file" id="media-input" accept="image/*,video/*" style="display: none;">
-                    <button id="media-btn" class="mini-btn">📷</button>
+                    <button id="media-btn" class="mini-btn" title="Send photo or video">📷</button>
                     <input type="text" id="chat-input" placeholder="Type a sweet message..." />
-                    <button id="send-btn" class="mood-btn">Send</button>
+                    <button id="send-btn" class="mood-btn">Send 💌</button>
                 </div>
             </div>
         </section>
@@ -119,10 +122,10 @@
                 </div>
                 
                 <div id="daily-quest-card" class="quest-card">
-                    <p class="quest-tag">TODAY'S QUEST</p>
+                    <p id="quest-category-tag" class="quest-tag category-romance">ROMANCE</p>
                     <h4 id="quest-title">Loading quest...</h4>
                     <p id="quest-desc">Loading instructions...</p>
-                    
+
                     <div class="quest-check-area">
                         <button id="check-varaidzo" class="quest-check-btn">Varaidzo Done</button>
                         <button id="check-arnold" class="quest-check-btn">Arnold Done</button>
@@ -130,10 +133,21 @@
                 </div>
 
                 <div class="mini-game">
-                    <h4>The Sync Heart 💖</h4>
-                    <p>Both of you must tap the heart to "Sync" your energy!</p>
-                    <button id="sync-heart-btn" class="sync-heart">❤️</button>
-                    <p id="sync-status">Waiting for Arnold & Varaidzo...</p>
+                    <h4>Sync Your Hearts 💖</h4>
+                    <p class="sync-hint">Both tap the heart at the same time to feel connected!</p>
+                    <div class="sync-tap-indicators">
+                        <div class="sync-person">
+                            <div id="sync-arnold-dot" class="sync-dot"></div>
+                            <span>Arnold</span>
+                        </div>
+                        <button id="sync-heart-btn" class="sync-heart">❤️</button>
+                        <div class="sync-person">
+                            <div id="sync-varaidzo-dot" class="sync-dot"></div>
+                            <span>Varaidzo</span>
+                        </div>
+                    </div>
+                    <p id="sync-status">Tap together to sync your hearts 💕</p>
+                    <p id="sync-streak" class="sync-streak"></p>
                 </div>
             </div>
         </section>
@@ -152,9 +166,9 @@
             <!-- Milestones & Countdown -->
             <section class="growth-card milestones">
                 <div class="glass-box">
-                    <h3>Our Next Milestone</h3>
+                    <h3>Our Next Milestone 🗓️</h3>
                     <div id="countdown-display">
-                        <span class="days">00</span> Days <span class="hours">00</span> Hours
+                        <span class="days">--</span>d <span class="hours">--</span>h <span class="mins">--</span>m
                     </div>
                     <p id="milestone-name">Loading our next big day...</p>
                 </div>
