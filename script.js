@@ -131,9 +131,12 @@ if (customMoodBtn) {
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 const validUsers = ["arnold", "varaidzo", "arnold alpha", "varaidzo samantha", "samantha"];
+const SALPHA_PASSPHRASE = "to infinity and beyond";
 const authOverlay = document.getElementById('auth-overlay');
 const mainApp = document.getElementById('main-app');
+const salphaApp = document.getElementById('salpha-app');
 const authInput = document.getElementById('auth-name-input');
+const authPassphraseInput = document.getElementById('auth-passphrase-input');
 const loginBtn = document.getElementById('login-btn');
 const authError = document.getElementById('auth-error');
 const loggedUserDisplay = document.getElementById('logged-user-display');
@@ -141,11 +144,37 @@ const logoutBtn = document.getElementById('logout-btn');
 
 function checkAuth() {
     const sessionUser = localStorage.getItem('current-session-user');
+    if (sessionUser === 'Salpha') { showSalphaApp(); return; }
     if (sessionUser) showApp(sessionUser);
 }
 
 function login() {
     const input = authInput?.value.trim().toLowerCase();
+
+    // SALPHA: reveal a passphrase field first, then validate it
+    if (input === 'salpha') {
+        if (authPassphraseInput?.classList.contains('hidden')) {
+            authPassphraseInput.classList.remove('hidden');
+            authPassphraseInput.focus();
+            if (authError) authError.textContent = "Enter the secret passphrase to continue. 🔒";
+            return;
+        }
+        const passphrase = authPassphraseInput?.value.trim().toLowerCase();
+        if (passphrase === SALPHA_PASSPHRASE) {
+            localStorage.setItem('current-session-user', 'Salpha');
+            showSalphaApp();
+        } else {
+            if (authError) authError.textContent = "Access denied. Only SALPHA may pass. 🔒";
+        }
+        return;
+    }
+
+    // Switching away from "salpha" hides the passphrase field again
+    if (authPassphraseInput && !authPassphraseInput.classList.contains('hidden')) {
+        authPassphraseInput.classList.add('hidden');
+        authPassphraseInput.value = '';
+    }
+
     if (validUsers.includes(input)) {
         const formattedName = input.charAt(0).toUpperCase() + input.slice(1);
         localStorage.setItem('current-session-user', formattedName);
@@ -168,9 +197,85 @@ function showApp(userName) {
     setupSync();
     startMilestoneCountdown();
     initPromptDisplay();
+    loadMysteryBox();
 
     const chatLabel = document.getElementById('chat-user-label');
     if (chatLabel) chatLabel.textContent = `Logged in as: ${currentUser}`;
+}
+
+// ── SALPHA: Our Locations dashboard ─────────────────────────────────────────
+let salphaMap = null;
+let salphaMarkers = {};
+let salphaLocations = {};
+
+function showSalphaApp() {
+    if (authOverlay) authOverlay.classList.add('hidden');
+    if (mainApp) mainApp.classList.add('hidden');
+    if (salphaApp) salphaApp.classList.remove('hidden');
+    currentUser = 'Salpha';
+    initSalphaMap();
+}
+
+function initSalphaMap() {
+    const mapEl = document.getElementById('salpha-map');
+    if (!mapEl || !window.L || !db) return;
+
+    if (!salphaMap) {
+        salphaMap = L.map('salpha-map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(salphaMap);
+        setTimeout(() => salphaMap.invalidateSize(), 150);
+    }
+
+    const icons = { arnold: '💙', varaidzo: '💖' };
+    Object.keys(icons).forEach(key => {
+        onValue(ref(db, 'locations/' + key), (snap) => updateSalphaLocation(key, snap.val(), icons[key]));
+    });
+}
+
+function updateSalphaLocation(key, data, emoji) {
+    salphaLocations[key] = (data && data.lat != null && data.lng != null) ? data : null;
+
+    if (salphaLocations[key]) {
+        const { lat, lng, timestamp } = salphaLocations[key];
+        const label = key.charAt(0).toUpperCase() + key.slice(1);
+        if (salphaMarkers[key]) {
+            salphaMarkers[key].setLatLng([lat, lng]);
+        } else {
+            const icon = L.divIcon({ html: `<div class="salpha-marker">${emoji}</div>`, className: '', iconSize: [36, 36], iconAnchor: [18, 18] });
+            salphaMarkers[key] = L.marker([lat, lng], { icon }).addTo(salphaMap);
+        }
+        salphaMarkers[key].bindPopup(`${label} — last seen ${formatTimeAgo(timestamp)}`);
+    }
+
+    renderSalphaList();
+    fitSalphaBounds();
+}
+
+function renderSalphaList() {
+    const listEl = document.getElementById('salpha-location-list');
+    if (!listEl) return;
+    const rows = ['arnold', 'varaidzo'].map(key => {
+        const label = key.charAt(0).toUpperCase() + key.slice(1);
+        const emoji = key === 'arnold' ? '💙' : '💖';
+        const data = salphaLocations[key];
+        const status = data?.timestamp
+            ? `<span>Last seen ${formatTimeAgo(data.timestamp)}</span>`
+            : `<span class="salpha-no-data">No location yet</span>`;
+        return `<div class="salpha-location-item"><span>${emoji} ${label}</span>${status}</div>`;
+    });
+    listEl.innerHTML = rows.join('');
+}
+
+function fitSalphaBounds() {
+    if (!salphaMap) return;
+    const pts = Object.values(salphaLocations)
+        .filter(d => d)
+        .map(d => [d.lat, d.lng]);
+    if (pts.length === 1) salphaMap.setView(pts[0], 13);
+    else if (pts.length > 1) salphaMap.fitBounds(pts, { padding: [40, 40] });
 }
 
 // ── Sync hub ───────────────────────────────────────────────────────────────
@@ -273,6 +378,16 @@ function setupSync() {
         const level = document.getElementById('love-level');
         if (level) level.textContent = Math.floor(count / 3) + 1;
     });
+
+    // 11. SOS — "I need you" alerts
+    onValue(ref(db, 'sos/' + partnerName.toLowerCase()), (snap) => {
+        const data = snap.val();
+        if (!data || !data.timestamp) return;
+        const lastSeen = parseInt(localStorage.getItem('last-sos-seen') || '0', 10);
+        if (data.timestamp > lastSeen && Date.now() - data.timestamp < SOS_ALERT_WINDOW_MS) {
+            showSosAlert();
+        }
+    });
 }
 
 // ── Sync heart ─────────────────────────────────────────────────────────────
@@ -356,6 +471,52 @@ if (syncBtn) {
         const myKey = currentUser.toLowerCase() === 'arnold' ? 'arnold' : 'varaidzo';
         set(ref(db, 'sync/' + myKey), true);
     });
+}
+
+// ── SOS: "I need you" ────────────────────────────────────────────────────────
+const SOS_COOLDOWN_MS = 5 * 60 * 1000; // wait between pings so it can't be spammed
+const SOS_ALERT_WINDOW_MS = 10 * 60 * 1000; // how long an SOS stays "fresh" for the partner
+
+function sendSOS() {
+    if (!db || !currentUser || currentUser === 'Salpha') return;
+
+    const feedback = document.getElementById('sos-feedback');
+    const now = Date.now();
+    const lastSent = parseInt(localStorage.getItem('last-sos-sent') || '0', 10);
+
+    if (now - lastSent < SOS_COOLDOWN_MS) {
+        const remaining = Math.ceil((SOS_COOLDOWN_MS - (now - lastSent)) / 1000);
+        if (feedback) {
+            feedback.textContent = `Already sent — give it ${remaining}s before pinging again 💕`;
+            feedback.classList.remove('hidden');
+            setTimeout(() => feedback.classList.add('hidden'), 3000);
+        }
+        return;
+    }
+
+    set(ref(db, 'sos/' + currentUser.toLowerCase()), { from: currentUser, timestamp: now });
+    localStorage.setItem('last-sos-sent', String(now));
+    createHearts(12, ['💔', '🆘', '❤️']);
+
+    if (feedback) {
+        feedback.textContent = `${partnerName} has been notified 💕`;
+        feedback.classList.remove('hidden');
+        setTimeout(() => feedback.classList.add('hidden'), 4000);
+    }
+}
+
+function showSosAlert() {
+    const overlay = document.getElementById('sos-alert-overlay');
+    const nameEl = document.getElementById('sos-partner-name');
+    if (!overlay) return;
+    if (nameEl) nameEl.textContent = partnerName;
+    overlay.classList.remove('hidden');
+    createHearts(20, ['💔', '🫂', '❤️']);
+}
+
+function acknowledgeSos() {
+    document.getElementById('sos-alert-overlay')?.classList.add('hidden');
+    localStorage.setItem('last-sos-seen', String(Date.now()));
 }
 
 // ── Chat ───────────────────────────────────────────────────────────────────
@@ -716,6 +877,139 @@ document.getElementById('check-arnold')?.addEventListener('click', () => {
     if (currentUser === "Arnold") set(ref(db, 'quests/arnold'), !questState.arnold);
 });
 
+// ── Mystery Gift Box ────────────────────────────────────────────────────────
+const mysteryGifts = [
+    { icon: "🥞", tag: "romance", text: "Redeem this for breakfast in bed, made with love — whenever you're ready to claim it. 💕" },
+    { icon: "🎤", tag: "fun", text: "Dare: Send your partner a voice note saying 'I love you' in your silliest accent. 😂" },
+    { icon: "💌", tag: "romance", text: "You are the best thing that has ever been mine. Read this again whenever you doubt it." },
+    { icon: "🌹", tag: "romance", text: "Tell your partner that their smile is your favorite place in the whole world." },
+    { icon: "🎬", tag: "dreams", text: "Plan a cozy virtual movie night together this week — you pick the snacks, they pick the movie. 🍿" },
+    { icon: "🛁", tag: "romance", text: "Coupon: one relaxing bath or spa night, set up by your partner with candles and your favorite music." },
+    { icon: "📸", tag: "memory", text: "Find your favorite photo of the two of you and send it with a caption about that exact moment." },
+    { icon: "🎲", tag: "fun", text: "Surprise challenge: ask each other 3 'would you rather' questions — no skipping allowed!" },
+    { icon: "✍️", tag: "creative", text: "Write a tiny 2-line poem about your partner right now and send it to them." },
+    { icon: "🍫", tag: "romance", text: "Coupon: redeemable for your partner's favorite treat, delivered with a hug." },
+    { icon: "🌌", tag: "dreams", text: "Tonight, step outside (even on a call) and find one star to call 'ours'." },
+    { icon: "🔮", tag: "deep", text: "Tell your partner one thing about your future together that excites you most right now." },
+    { icon: "🎶", tag: "creative", text: "Send your partner a song that's playing in your head right now — no explanation needed." },
+    { icon: "🤍", tag: "deep", text: "Say one thing you've never said out loud about how much they mean to you." },
+    { icon: "🧸", tag: "romance", text: "Coupon: one cuddle session, redeemable any time, no questions asked." },
+    { icon: "🚀", tag: "romance", text: "Say 'To Infinity' to your partner today — and see if they answer 'and Beyond!' 🚀" },
+    { icon: "🎁", tag: "fun", text: "Surprise! Send your partner a random compliment about something they did this week." },
+    { icon: "🗺️", tag: "dreams", text: "Pick a place neither of you have been and tell your partner why you'd love to go there together." },
+    { icon: "💃", tag: "fun", text: "Dance challenge: play your favorite song and send a clip of your best dance move." },
+    { icon: "📖", tag: "memory", text: "Tell your partner about the moment you first realized you were falling for them." },
+    { icon: "🌅", tag: "dreams", text: "Promise: watch the next sunrise or sunset together (in person or by phone) and share how it feels." },
+    { icon: "💎", tag: "deep", text: "Name one quality in your partner that makes you feel safe, and tell them why." },
+    { icon: "🎉", tag: "fun", text: "Invent a silly new tradition for just the two of you, starting today." },
+    { icon: "📝", tag: "creative", text: "Write your partner a one-sentence love note and send it to them right now." },
+    { icon: "🍳", tag: "romance", text: "Coupon: breakfast or dinner cooked by you, partner's choice of menu." },
+    { icon: "🧩", tag: "fun", text: "Riddle: describe your partner using only 3 emojis — let them guess what you meant." },
+    { icon: "🌻", tag: "romance", text: "Tell your partner something small they did recently that made your whole day better." },
+    { icon: "🕰️", tag: "memory", text: "Share one memory from the very beginning of your relationship that still makes you smile." },
+    { icon: "💞", tag: "deep", text: "Tell your partner what 'home' means to you — and how they fit into that feeling." },
+    { icon: "🎈", tag: "fun", text: "Surprise hug challenge: next time you see each other, hug for 20 full seconds." },
+    { icon: "🌠", tag: "dreams", text: "Make a wish together for something you both want this year — say it out loud." },
+    { icon: "💋", tag: "romance", text: "Coupon: one extra goodnight kiss tonight, with no excuses allowed." },
+    { icon: "🧠", tag: "challenge", text: "Quiz your partner: ask them your current favorite song, food, and show — see how well they know you." },
+    { icon: "🌈", tag: "dreams", text: "Describe your perfect lazy Sunday together, from morning to night." },
+    { icon: "💝", tag: "romance", text: "Just because: tell your partner 'I love you' right now, for no reason at all." },
+];
+
+const mysteryBoxEl = document.getElementById('mystery-box');
+const mysteryStatus = document.getElementById('mystery-status');
+const mysteryReveal = document.getElementById('mystery-reveal');
+const mysteryRevealIcon = document.getElementById('mystery-reveal-icon');
+const mysteryRevealText = document.getElementById('mystery-reveal-text');
+const mysteryRevealTag = document.getElementById('mystery-reveal-tag');
+const mysteryPartnerStatus = document.getElementById('mystery-partner-status');
+
+let myMysteryOpened = false;
+
+function mysteryDateKey() {
+    return new Date().toDateString().replace(/\s/g, '_');
+}
+
+function loadMysteryBox() {
+    if (!db || !currentUser) return;
+    const myKey = currentUser.toLowerCase();
+    const partnerKey = partnerName.toLowerCase();
+    const date = mysteryDateKey();
+
+    onValue(ref(db, `mysteryBox/${date}/${myKey}`), (snap) => {
+        const data = snap.val();
+        if (data) {
+            myMysteryOpened = true;
+            showMysteryReveal(data.giftIndex, false);
+        } else {
+            myMysteryOpened = false;
+            resetMysteryBoxUI();
+        }
+    });
+
+    onValue(ref(db, `mysteryBox/${date}/${partnerKey}`), (snap) => {
+        if (!mysteryPartnerStatus) return;
+        mysteryPartnerStatus.textContent = snap.val()
+            ? `${partnerName} opened their box too! 🎉`
+            : `${partnerName} hasn't opened their box yet 🔒`;
+    });
+}
+
+function resetMysteryBoxUI() {
+    if (mysteryReveal) mysteryReveal.classList.add('hidden');
+    if (mysteryBoxEl) mysteryBoxEl.classList.remove('opened');
+    if (mysteryStatus) {
+        mysteryStatus.textContent = "Tap the box to open today's surprise!";
+        mysteryStatus.classList.remove('hidden');
+    }
+}
+
+function showMysteryReveal(giftIndex, animate) {
+    const gift = mysteryGifts[giftIndex % mysteryGifts.length];
+    if (!gift) return;
+    if (mysteryStatus) mysteryStatus.classList.add('hidden');
+    if (mysteryBoxEl) mysteryBoxEl.classList.add('opened');
+    if (mysteryRevealIcon) mysteryRevealIcon.textContent = gift.icon;
+    if (mysteryRevealText) mysteryRevealText.textContent = gift.text;
+    if (mysteryRevealTag) {
+        mysteryRevealTag.textContent = gift.tag.toUpperCase();
+        mysteryRevealTag.className = `quest-tag category-${gift.tag}`;
+    }
+    if (mysteryReveal) {
+        mysteryReveal.classList.remove('hidden');
+        if (animate) {
+            mysteryReveal.classList.remove('pop-in');
+            void mysteryReveal.offsetWidth; // restart animation
+            mysteryReveal.classList.add('pop-in');
+        }
+    }
+}
+
+function openMysteryBox() {
+    if (!db || !currentUser || myMysteryOpened) return;
+    const myKey = currentUser.toLowerCase();
+    const date = mysteryDateKey();
+    const boxRef = ref(db, `mysteryBox/${date}/${myKey}`);
+
+    if (mysteryBoxEl) {
+        mysteryBoxEl.classList.add('shaking');
+        setTimeout(() => mysteryBoxEl?.classList.remove('shaking'), 600);
+    }
+
+    onValue(boxRef, (snap) => {
+        if (snap.val()) { showMysteryReveal(snap.val().giftIndex, true); return; }
+        const giftIndex = Math.floor(Math.random() * mysteryGifts.length);
+        myMysteryOpened = true;
+        set(boxRef, { giftIndex, openedAt: Date.now() });
+        setTimeout(() => {
+            showMysteryReveal(giftIndex, true);
+            createHearts(20, ['🎁', '💖', '✨', '💫', '🌟', '💝', '💌']);
+        }, 500);
+    }, { onlyOnce: true });
+}
+
+mysteryBoxEl?.addEventListener('click', openMysteryBox);
+
 // ── Connection prompts ─────────────────────────────────────────────────────
 const connectionPrompts = [
     "If you could relive one day of our relationship, which day would it be and why?",
@@ -834,7 +1128,9 @@ function renderFirebaseList(listId, items, dbPath) {
 }
 
 function logout() {
-    if (db) set(ref(db, 'status/' + currentUser.toLowerCase()), 'offline');
+    if (db && (currentUser === 'Arnold' || currentUser === 'Varaidzo')) {
+        set(ref(db, 'status/' + currentUser.toLowerCase()), 'offline');
+    }
     localStorage.removeItem('current-session-user');
     location.reload();
 }
@@ -842,7 +1138,11 @@ function logout() {
 // ── Global event listeners ─────────────────────────────────────────────────
 if (loginBtn) loginBtn.addEventListener('click', login);
 if (authInput) authInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') login(); });
+if (authPassphraseInput) authPassphraseInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') login(); });
 if (logoutBtn) logoutBtn.addEventListener('click', logout);
+document.getElementById('salpha-logout-btn')?.addEventListener('click', logout);
+document.getElementById('sos-btn')?.addEventListener('click', sendSOS);
+document.getElementById('sos-acknowledge-btn')?.addEventListener('click', acknowledgeSos);
 
 document.getElementById('add-gratitude-btn')?.addEventListener('click', () => {
     const val = document.getElementById('gratitude-input')?.value.trim();

@@ -6,6 +6,9 @@
     <title>Varaidzo & Arnold: Our Heartbeat</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Leaflet (for SALPHA location map) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Modern Firebase SDK -->
     <script type="importmap">
     {
@@ -25,6 +28,7 @@
             <p>Welcome to our heartbeat...</p>
             <div class="auth-input-group">
                 <input type="text" id="auth-name-input" placeholder="What is your name?">
+                <input type="password" id="auth-passphrase-input" class="hidden" placeholder="Enter the secret passphrase...">
                 <button id="login-btn" class="mood-btn">Step Inside ❤️</button>
             </div>
             <p id="auth-error" class="error-msg"></p>
@@ -47,7 +51,13 @@
                         </div>
                         <span id="sync-indicator" class="sync-indicator">Checking connection...</span>
                     </div>
-                    <button id="logout-btn" class="mini-btn">Logout</button>
+                    <div class="header-actions">
+                        <div class="header-actions-row">
+                            <button id="sos-btn" class="sos-btn" title="Let your partner know you need them right now">🆘 I need you</button>
+                            <button id="logout-btn" class="mini-btn">Logout</button>
+                        </div>
+                        <span id="sos-feedback" class="sos-feedback hidden"></span>
+                    </div>
                 </div>
                 <h1 class="title">Varaidzo Samantha & Arnold Alpha</h1>
                 <p class="subtitle">Our Heartbeat & Little Space</p>
@@ -159,6 +169,26 @@
             </div>
         </section>
 
+        <!-- Mystery Gift Box -->
+        <section class="mystery-section">
+            <div class="glass-box mystery-container">
+                <h3>Mystery Gift Box</h3>
+                <p class="mystery-hint">A little surprise from the universe, just for you... ✨</p>
+
+                <div id="mystery-box" class="mystery-box" title="Tap to open today's surprise">🎁</div>
+
+                <p id="mystery-status">Tap the box to open today's surprise!</p>
+
+                <div id="mystery-reveal" class="mystery-reveal hidden">
+                    <span id="mystery-reveal-tag" class="quest-tag category-romance">SURPRISE</span>
+                    <div id="mystery-reveal-icon" class="mystery-reveal-icon">💌</div>
+                    <p id="mystery-reveal-text"></p>
+                </div>
+
+                <p id="mystery-partner-status" class="mystery-partner-status"></p>
+            </div>
+        </section>
+
         <!-- New Growth Features -->
         <div class="growth-grid">
             <!-- Connection Prompts -->
@@ -214,6 +244,40 @@
                 </div>
             </section>
         </div>
+
+        <!-- SOS: "I need you" alert -->
+        <div id="sos-alert-overlay" class="sos-alert-overlay hidden">
+            <div class="sos-alert-box glass-box">
+                <div class="sos-alert-icon">💔</div>
+                <h2><span id="sos-partner-name">Partner</span> needs you right now</h2>
+                <p>Reach out to them now — a call, a message, or just being there means everything. 🫂</p>
+                <button id="sos-acknowledge-btn" class="mood-btn">I'm here for you 💕</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SALPHA: Our Locations Dashboard -->
+    <div id="salpha-app" class="hidden">
+        <main class="container">
+            <header>
+                <div class="user-info">
+                    <span>Logged in as: <strong>SALPHA</strong> 🛰️</span>
+                    <button id="salpha-logout-btn" class="mini-btn">Logout</button>
+                </div>
+                <h1 class="title">SALPHA</h1>
+                <p class="subtitle">Samantha + Alpha &mdash; Watching Over Both Hearts</p>
+            </header>
+
+            <section class="salpha-map-section">
+                <div class="glass-box salpha-container">
+                    <h3>Our Locations 🛰️💞</h3>
+                    <div id="salpha-map" class="salpha-map"></div>
+                    <div id="salpha-location-list" class="salpha-location-list">
+                        <p class="salpha-placeholder">Waiting for location data from the mobile app...</p>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 
     <!-- Modern Firebase SDK -->
