@@ -353,12 +353,14 @@ function setupSync() {
         renderFirebaseList('bucket-list', items, 'bucketlist');
     });
 
-    // 7. Mood history
-    const historyRef = query(ref(db, 'moodHistory/' + partnerName.toLowerCase()), limitToLast(10));
-    onValue(historyRef, (snap) => {
-        const history = [];
-        snap.forEach(child => history.push(child.val()));
-        renderMoodHistory(history.reverse());
+    // 7. Mood history — both users combined, newest first
+    onValue(ref(db, 'moodHistory'), (snap) => {
+        const all = [];
+        snap.forEach(userSnap => {
+            userSnap.forEach(entry => all.push({ ...entry.val(), who: userSnap.key }));
+        });
+        all.sort((a, b) => b.timestamp - a.timestamp);
+        renderMoodHistory(all.slice(0, 20));
     });
 
     // 8. Sync heart (persistent real-time)
@@ -379,7 +381,14 @@ function setupSync() {
         if (level) level.textContent = Math.floor(count / 3) + 1;
     });
 
-    // 11. SOS — "I need you" alerts
+    // 11. Custom milestones
+    onValue(ref(db, 'customMilestones'), (snap) => {
+        const items = snap.val() || {};
+        renderMilestoneList(items);
+        refreshMilestoneCountdown(Object.values(items));
+    });
+
+    // 12. SOS — "I need you" alerts
     onValue(ref(db, 'sos/' + partnerName.toLowerCase()), (snap) => {
         const data = snap.val();
         if (!data || !data.timestamp) return;
@@ -1050,31 +1059,41 @@ document.getElementById('next-prompt-btn')?.addEventListener('click', () => {
 });
 
 // ── Milestone countdown ────────────────────────────────────────────────────
-// Update RELATIONSHIP_START to your actual start date (year, month-1, day):
 const RELATIONSHIP_START = new Date(2024, 11, 25); // Dec 25, 2024
+let milestoneTimer = null;
 
-function getNextMilestone() {
+function getNextAutoMilestone() {
     const now = new Date();
     const msPerMonth = 30.44 * 86400000;
     const monthsTogether = Math.floor((now - RELATIONSHIP_START) / msPerMonth);
-    // Find the next full month milestone
-    let nextMonths = monthsTogether + 1;
+    const nextMonths = monthsTogether + 1;
     const nextDate = new Date(RELATIONSHIP_START.getFullYear(), RELATIONSHIP_START.getMonth() + nextMonths, RELATIONSHIP_START.getDate());
     const isAnniversary = nextMonths % 12 === 0;
-    const label = isAnniversary
-        ? `${nextMonths / 12}-Year Anniversary 🎉💖`
-        : `${nextMonths}-Month Anniversary 💖`;
-    return { date: nextDate, label };
+    return {
+        date: nextDate,
+        label: isAnniversary ? `${nextMonths / 12}-Year Anniversary 🎉💖` : `${nextMonths}-Month Anniversary 💖`
+    };
 }
 
-function startMilestoneCountdown() {
-    const { date, label } = getNextMilestone();
+function refreshMilestoneCountdown(customItems = []) {
+    if (milestoneTimer) clearInterval(milestoneTimer);
+
+    const now = new Date();
+    const candidates = [getNextAutoMilestone()];
+    customItems.forEach(item => {
+        if (!item || !item.name || !item.date) return;
+        const d = new Date(item.date + 'T00:00:00');
+        if (d > now) candidates.push({ date: d, label: item.name });
+    });
+    candidates.sort((a, b) => a.date - b.date);
+    const next = candidates[0];
+
     const nameEl = document.getElementById('milestone-name');
-    if (nameEl) nameEl.textContent = label;
+    if (nameEl) nameEl.textContent = next.label;
 
     function tick() {
-        const diff = date - Date.now();
-        if (diff <= 0) { startMilestoneCountdown(); return; }
+        const diff = next.date - Date.now();
+        if (diff <= 0) { refreshMilestoneCountdown(customItems); return; }
         const days = Math.floor(diff / 86400000);
         const hours = Math.floor((diff % 86400000) / 3600000);
         const mins = Math.floor((diff % 3600000) / 60000);
@@ -1082,7 +1101,47 @@ function startMilestoneCountdown() {
         if (el) el.innerHTML = `<span class="days">${days}</span>d <span class="hours">${String(hours).padStart(2,'0')}</span>h <span class="mins">${String(mins).padStart(2,'0')}</span>m`;
     }
     tick();
-    setInterval(tick, 30000);
+    milestoneTimer = setInterval(tick, 30000);
+}
+
+function startMilestoneCountdown() {
+    refreshMilestoneCountdown([]); // Firebase listener will update with real custom data shortly
+}
+
+function renderMilestoneList(items) {
+    const list = document.getElementById('milestone-list');
+    if (!list) return;
+    const now = new Date();
+    const upcoming = Object.entries(items)
+        .map(([key, val]) => ({ key, ...val }))
+        .filter(item => item.date && new Date(item.date + 'T00:00:00') > now)
+        .sort((a, b) => new Date(a.date + 'T00:00:00') - new Date(b.date + 'T00:00:00'));
+
+    list.innerHTML = '';
+    if (!upcoming.length) {
+        list.innerHTML = '<div class="milestone-empty">Add your own big days below 💕</div>';
+        return;
+    }
+    upcoming.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'milestone-item';
+        const d = new Date(item.date + 'T00:00:00');
+        const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        div.innerHTML = `<span class="milestone-item-name">${item.name}</span><span class="milestone-item-date">${dateStr}</span><button class="milestone-delete-btn" title="Remove">×</button>`;
+        div.querySelector('.milestone-delete-btn').addEventListener('click', () => remove(ref(db, 'customMilestones/' + item.key)));
+        list.appendChild(div);
+    });
+}
+
+function addMilestone() {
+    const nameInput = document.getElementById('milestone-title-input');
+    const dateInput = document.getElementById('milestone-date-input');
+    const name = nameInput?.value.trim();
+    const date = dateInput?.value;
+    if (!name || !date || !db) return;
+    push(ref(db, 'customMilestones'), { name, date });
+    if (nameInput) nameInput.value = '';
+    if (dateInput) dateInput.value = '';
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────
@@ -1100,12 +1159,21 @@ function renderMoodHistory(history) {
     const list = document.getElementById('mood-history-list');
     if (!list) return;
     list.innerHTML = '';
+    if (!history.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'color:#bbb;font-size:0.8rem;padding:0.5rem;text-align:center;font-style:italic;';
+        empty.textContent = 'No mood history yet — tap a mood above!';
+        list.appendChild(empty);
+        return;
+    }
     history.forEach(item => {
         const div = document.createElement('div');
         div.className = 'mood-history-item';
         const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const date = new Date(item.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
-        div.innerHTML = `<span class="mood-label">${getMoodEmoji(item.mood)} ${item.mood}</span><span class="mood-time">${date}, ${time}</span>`;
+        const heart = item.who === 'arnold' ? '💙' : item.who === 'varaidzo' ? '💖' : '';
+        const whoSpan = heart ? `<span class="mood-who">${heart}</span> ` : '';
+        div.innerHTML = `<span class="mood-label">${whoSpan}${getMoodEmoji(item.mood)} ${item.mood}</span><span class="mood-time">${date}, ${time}</span>`;
         list.appendChild(div);
     });
 }
@@ -1143,6 +1211,8 @@ if (logoutBtn) logoutBtn.addEventListener('click', logout);
 document.getElementById('salpha-logout-btn')?.addEventListener('click', logout);
 document.getElementById('sos-btn')?.addEventListener('click', sendSOS);
 document.getElementById('sos-acknowledge-btn')?.addEventListener('click', acknowledgeSos);
+document.getElementById('add-milestone-btn')?.addEventListener('click', addMilestone);
+document.getElementById('milestone-title-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') addMilestone(); });
 
 document.getElementById('add-gratitude-btn')?.addEventListener('click', () => {
     const val = document.getElementById('gratitude-input')?.value.trim();
