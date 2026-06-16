@@ -1167,6 +1167,8 @@ function renderMoodHistory(history) {
     const list = document.getElementById('mood-history-list');
     if (!list) return;
     list.innerHTML = '';
+    const countEl = document.getElementById('mood-history-count');
+    if (countEl) countEl.textContent = history.length ? `(${history.length})` : '';
     if (!history.length) {
         const empty = document.createElement('div');
         empty.style.cssText = 'color:#bbb;font-size:0.8rem;padding:0.5rem;text-align:center;font-style:italic;';

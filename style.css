@@ -825,11 +825,13 @@ header {
     overscroll-behavior: contain;
 }
 
-/* Mood history — show all entries, no clip */
-.growth-card.mood-history .scroll-list {
-    height: auto;
-    max-height: none;
-    overflow-y: visible;
+/* Mood history — no scroll box, just show everything */
+#mood-history-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
 }
 
 .scroll-list > * {
