@@ -825,10 +825,11 @@ header {
     overscroll-behavior: contain;
 }
 
-/* Mood history needs more visible rows */
+/* Mood history — show all entries, no clip */
 .growth-card.mood-history .scroll-list {
-    max-height: 220px;
-    height: 220px;
+    height: auto;
+    max-height: none;
+    overflow-y: visible;
 }
 
 .scroll-list > * {
