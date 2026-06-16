@@ -361,13 +361,13 @@ function setupSync() {
         renderMoodHistory(merged);
     };
     onValue(ref(db, 'moodHistory/arnold'), (snap) => {
-        _mhCache.arnold = [];
-        snap.forEach(c => _mhCache.arnold.push({ ...c.val(), who: 'arnold' }));
+        const val = snap.val() || {};
+        _mhCache.arnold = Object.values(val).map(e => ({ ...e, who: 'arnold' }));
         _mergeMoodHistory();
     });
     onValue(ref(db, 'moodHistory/varaidzo'), (snap) => {
-        _mhCache.varaidzo = [];
-        snap.forEach(c => _mhCache.varaidzo.push({ ...c.val(), who: 'varaidzo' }));
+        const val = snap.val() || {};
+        _mhCache.varaidzo = Object.values(val).map(e => ({ ...e, who: 'varaidzo' }));
         _mergeMoodHistory();
     });
 
