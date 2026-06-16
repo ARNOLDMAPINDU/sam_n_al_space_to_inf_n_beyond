@@ -353,14 +353,14 @@ function setupSync() {
         renderFirebaseList('bucket-list', items, 'bucketlist');
     });
 
-    // 7. Mood history — both users combined, newest first
+    // 7. Mood history — both users, all entries, newest first
     onValue(ref(db, 'moodHistory'), (snap) => {
         const all = [];
         snap.forEach(userSnap => {
             userSnap.forEach(entry => all.push({ ...entry.val(), who: userSnap.key }));
         });
         all.sort((a, b) => b.timestamp - a.timestamp);
-        renderMoodHistory(all.slice(0, 20));
+        renderMoodHistory(all);
     });
 
     // 8. Sync heart (persistent real-time)
