@@ -1178,12 +1178,18 @@ function renderMoodHistory(history) {
     }
     history.forEach(item => {
         const div = document.createElement('div');
-        div.className = 'mood-history-item';
+        const isArnold = item.who === 'arnold';
+        const isVaraidzo = item.who === 'varaidzo';
+        div.className = 'mood-history-item' + (isArnold ? ' mhi-arnold' : isVaraidzo ? ' mhi-varaidzo' : '');
         const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const date = new Date(item.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
-        const heart = item.who === 'arnold' ? '💙' : item.who === 'varaidzo' ? '💖' : '';
-        const whoSpan = heart ? `<span class="mood-who">${heart}</span> ` : '';
-        div.innerHTML = `<span class="mood-label">${whoSpan}${getMoodEmoji(item.mood)} ${item.mood}</span><span class="mood-time">${date}, ${time}</span>`;
+        const whoLabel = isArnold ? '💙 Arnold' : isVaraidzo ? '💖 Varaidzo' : '';
+        div.innerHTML = `
+            <div class="mhi-left">
+                <span class="mhi-who">${whoLabel}</span>
+                <span class="mhi-mood">${getMoodEmoji(item.mood)} ${item.mood}</span>
+            </div>
+            <span class="mhi-time">${date}, ${time}</span>`;
         list.appendChild(div);
     });
 }

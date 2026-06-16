@@ -409,18 +409,44 @@ header {
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    padding: 0.8rem !important;
+    padding: 0.7rem 0.9rem;
+    border-radius: 10px;
     border-left: 4px solid var(--accent-color);
+    background: rgba(255,255,255,0.35);
+    gap: 0.5rem;
 }
-
-.mood-history-item .mood-label {
+.mood-history-item.mhi-arnold {
+    border-left-color: #6cb4f5;
+    background: rgba(108,180,245,0.10);
+}
+.mood-history-item.mhi-varaidzo {
+    border-left-color: #f56ca8;
+    background: rgba(245,108,168,0.10);
+}
+.mhi-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.mhi-who {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #999;
+}
+.mhi-arnold .mhi-who { color: #4a9fd4; }
+.mhi-varaidzo .mhi-who { color: #d44a8a; }
+.mhi-mood {
+    font-size: 0.95rem;
     font-weight: 600;
-    color: #444;
+    color: #333;
 }
-
-.mood-history-item .mood-time {
-    font-size: 0.7rem;
-    color: #888;
+.mhi-time {
+    font-size: 0.68rem;
+    color: #aaa;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 @media (max-width: 600px) {
