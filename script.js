@@ -353,14 +353,22 @@ function setupSync() {
         renderFirebaseList('bucket-list', items, 'bucketlist');
     });
 
-    // 7. Mood history — both users, all entries, newest first
-    onValue(ref(db, 'moodHistory'), (snap) => {
-        const all = [];
-        snap.forEach(userSnap => {
-            userSnap.forEach(entry => all.push({ ...entry.val(), who: userSnap.key }));
-        });
-        all.sort((a, b) => b.timestamp - a.timestamp);
-        renderMoodHistory(all);
+    // 7. Mood history — both users combined, newest first
+    const _mhCache = { arnold: [], varaidzo: [] };
+    const _mergeMoodHistory = () => {
+        const merged = [..._mhCache.arnold, ..._mhCache.varaidzo]
+            .sort((a, b) => b.timestamp - a.timestamp);
+        renderMoodHistory(merged);
+    };
+    onValue(ref(db, 'moodHistory/arnold'), (snap) => {
+        _mhCache.arnold = [];
+        snap.forEach(c => _mhCache.arnold.push({ ...c.val(), who: 'arnold' }));
+        _mergeMoodHistory();
+    });
+    onValue(ref(db, 'moodHistory/varaidzo'), (snap) => {
+        _mhCache.varaidzo = [];
+        snap.forEach(c => _mhCache.varaidzo.push({ ...c.val(), who: 'varaidzo' }));
+        _mergeMoodHistory();
     });
 
     // 8. Sync heart (persistent real-time)
