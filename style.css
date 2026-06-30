@@ -1348,3 +1348,242 @@ header {
     font-size: 0.9rem;
     text-align: center;
 }
+
+/* ── Game Room ─────────────────────────────────────────────────────────────── */
+.games-section { margin-top: 3rem; }
+
+.games-container {
+    flex-direction: column;
+    max-width: 600px;
+    padding: 2rem;
+    text-align: center;
+}
+
+.games-container h3 {
+    font-family: 'Dancing Script', cursive;
+    font-size: 2.2rem;
+    color: var(--accent-color);
+    margin-bottom: 0.3rem;
+}
+
+.games-hint {
+    font-size: 0.85rem;
+    color: #888;
+    font-style: italic;
+    margin-bottom: 1.5rem;
+}
+
+.games-tab-bar {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.game-tab {
+    padding: 0.45rem 1rem;
+    border-radius: 25px;
+    border: 2px solid rgba(255, 64, 129, 0.3);
+    background: transparent;
+    color: #888;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.game-tab.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+.game-tab:hover:not(.active) {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.game-panel { width: 100%; }
+
+.game-status {
+    font-size: 0.92rem;
+    color: #555;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    min-height: 1.4rem;
+}
+
+.game-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+/* Tic Tac Toe */
+.ttt-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    max-width: 228px;
+    margin: 0 auto;
+}
+
+.ttt-cell {
+    aspect-ratio: 1;
+    background: white;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    user-select: none;
+}
+
+.ttt-cell:hover:not(.taken) {
+    transform: scale(1.06);
+    box-shadow: 0 6px 16px rgba(255, 64, 129, 0.2);
+}
+
+.ttt-cell.taken { cursor: default; }
+
+.ttt-cell.win {
+    background: linear-gradient(135deg, #fce4ec, #f8bbd0);
+    animation: winPop 0.4s ease forwards;
+}
+
+@keyframes winPop {
+    0%   { transform: scale(0.88); }
+    60%  { transform: scale(1.13); }
+    100% { transform: scale(1); }
+}
+
+.ttt-reset-btn { margin-top: 1rem; }
+
+.ttt-score {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 1rem;
+    font-size: 0.82rem;
+    color: #666;
+}
+
+.ttt-score strong {
+    color: var(--accent-color);
+    font-size: 1.1rem;
+}
+
+/* Memory Cards */
+.mem-board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    max-width: 300px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.mem-card {
+    aspect-ratio: 1;
+    cursor: pointer;
+    perspective: 600px;
+}
+
+.mem-card-inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.38s ease;
+}
+
+.mem-card.flipped .mem-card-inner,
+.mem-card.matched .mem-card-inner { transform: rotateY(180deg); }
+
+.mem-card-front,
+.mem-card-back {
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backface-visibility: hidden;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+}
+
+.mem-card-front {
+    background: linear-gradient(135deg, #ff4081, #f06292);
+    font-size: 1.2rem;
+    color: white;
+}
+
+.mem-card-back {
+    background: white;
+    font-size: 1.6rem;
+    transform: rotateY(180deg);
+}
+
+.mem-card.matched .mem-card-back {
+    background: linear-gradient(135deg, #f8bbd0, #fce4ec);
+}
+
+/* Slide Puzzle */
+.puzzle-board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    max-width: 260px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.puzzle-tile {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    font-weight: 700;
+    user-select: none;
+    transition: all 0.12s ease;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+}
+
+.puzzle-tile.num {
+    background: white;
+    color: #444;
+    cursor: pointer;
+    border: none;
+}
+
+.puzzle-tile.num:hover { background: #fce4ec; transform: scale(1.06); }
+
+.puzzle-tile.empty {
+    background: rgba(255,255,255,0.15);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.06);
+    cursor: default;
+}
+
+.puzzle-tile.solved {
+    background: linear-gradient(135deg, #fce4ec, #f8bbd0);
+    color: var(--accent-color);
+    cursor: default;
+}
+
+@media (max-width: 400px) {
+    .mem-board { max-width: 240px; gap: 6px; }
+    .puzzle-board { max-width: 210px; gap: 5px; }
+    .ttt-board { max-width: 195px; gap: 6px; }
+    .ttt-cell { font-size: 1.6rem; }
+}

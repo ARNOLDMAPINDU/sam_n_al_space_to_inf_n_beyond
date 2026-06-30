@@ -1239,6 +1239,250 @@ document.getElementById('add-bucket-btn')?.addEventListener('click', () => {
     if (val) { push(ref(db, 'bucketlist'), val); document.getElementById('bucket-input').value = ''; }
 });
 
+// ── Game Room ──────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.game-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.game-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.game-panel').forEach(p => p.classList.add('hidden'));
+        tab.classList.add('active');
+        document.getElementById('game-' + tab.dataset.game)?.classList.remove('hidden');
+    });
+});
+
+// ── Tic Tac Toe ────────────────────────────────────────────────────────────
+let tttBoard = Array(9).fill(null);
+let tttCurrent = 'X';
+let tttScores = { X: 0, O: 0, tie: 0 };
+let tttOver = false;
+
+const TTT_LINES = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+];
+
+function tttName(sym) { return sym === 'X' ? 'Arnold' : 'Varaidzo'; }
+
+function tttRender() {
+    const board = document.getElementById('ttt-board');
+    if (!board) return;
+    board.innerHTML = '';
+    tttBoard.forEach((val, i) => {
+        const cell = document.createElement('button');
+        cell.className = 'ttt-cell' + (val ? ' taken' : '');
+        cell.textContent = val === 'X' ? '❌' : val === 'O' ? '⭕' : '';
+        cell.addEventListener('click', () => tttMove(i));
+        board.appendChild(cell);
+    });
+}
+
+function tttMove(i) {
+    if (tttBoard[i] || tttOver) return;
+    tttBoard[i] = tttCurrent;
+    const winner = tttWinner();
+    const statusEl = document.getElementById('ttt-status');
+    if (winner) {
+        tttOver = true;
+        tttScores[winner]++;
+        tttRender();
+        tttHighlight(winner);
+        if (statusEl) statusEl.textContent = `${tttName(winner)} wins! 🎉`;
+        document.getElementById('ttt-score-arnold').textContent = tttScores.X;
+        document.getElementById('ttt-score-varaidzo').textContent = tttScores.O;
+    } else if (tttBoard.every(Boolean)) {
+        tttOver = true;
+        tttScores.tie++;
+        tttRender();
+        if (statusEl) statusEl.textContent = "It's a tie! 🤝";
+        document.getElementById('ttt-score-tie').textContent = tttScores.tie;
+    } else {
+        tttCurrent = tttCurrent === 'X' ? 'O' : 'X';
+        if (statusEl) statusEl.textContent = `${tttName(tttCurrent)}'s turn (${tttCurrent === 'X' ? '❌' : '⭕'})`;
+        tttRender();
+    }
+}
+
+function tttWinner() {
+    for (const [a, b, c] of TTT_LINES) {
+        if (tttBoard[a] && tttBoard[a] === tttBoard[b] && tttBoard[a] === tttBoard[c]) return tttBoard[a];
+    }
+    return null;
+}
+
+function tttHighlight(winner) {
+    setTimeout(() => {
+        const cells = document.querySelectorAll('.ttt-cell');
+        for (const [a, b, c] of TTT_LINES) {
+            if (tttBoard[a] === winner && tttBoard[b] === winner && tttBoard[c] === winner) {
+                [a, b, c].forEach(i => cells[i]?.classList.add('win'));
+                break;
+            }
+        }
+    }, 30);
+}
+
+function tttReset() {
+    tttBoard = Array(9).fill(null);
+    tttCurrent = 'X';
+    tttOver = false;
+    const statusEl = document.getElementById('ttt-status');
+    if (statusEl) statusEl.textContent = "Arnold's turn (❌)";
+    tttRender();
+}
+
+document.getElementById('ttt-reset')?.addEventListener('click', tttReset);
+tttRender();
+
+// ── Memory Cards ───────────────────────────────────────────────────────────
+const MEM_EMOJIS = ['💖','💍','🌹','✨','💌','🦋','🍓','🌸'];
+
+let memCards = [], memFlipped = [], memMatches = 0, memMoves = 0, memLocked = false;
+
+function memShuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function memInit() {
+    memCards = memShuffle([...MEM_EMOJIS, ...MEM_EMOJIS]).map((emoji, id) => ({ id, emoji, flipped: false, matched: false }));
+    memFlipped = []; memMatches = 0; memMoves = 0; memLocked = false;
+    const movesEl = document.getElementById('mem-moves');
+    const matchesEl = document.getElementById('mem-matches');
+    const statusEl = document.getElementById('mem-status');
+    if (movesEl) movesEl.textContent = 0;
+    if (matchesEl) matchesEl.textContent = 0;
+    if (statusEl) statusEl.textContent = 'Flip two cards to find a match! 💕';
+    memRender();
+}
+
+function memRender() {
+    const board = document.getElementById('mem-board');
+    if (!board) return;
+    board.innerHTML = '';
+    memCards.forEach(card => {
+        const el = document.createElement('div');
+        el.className = 'mem-card' + (card.flipped ? ' flipped' : '') + (card.matched ? ' matched' : '');
+        el.innerHTML = `<div class="mem-card-inner"><div class="mem-card-front">💕</div><div class="mem-card-back">${card.emoji}</div></div>`;
+        el.addEventListener('click', () => memFlip(card.id));
+        board.appendChild(el);
+    });
+}
+
+function memFlip(id) {
+    if (memLocked) return;
+    const card = memCards[id];
+    if (!card || card.flipped || card.matched) return;
+    card.flipped = true;
+    memFlipped.push(id);
+    memRender();
+    if (memFlipped.length < 2) return;
+
+    memLocked = true;
+    memMoves++;
+    const movesEl = document.getElementById('mem-moves');
+    if (movesEl) movesEl.textContent = memMoves;
+    const [a, b] = memFlipped;
+    if (memCards[a].emoji === memCards[b].emoji) {
+        memCards[a].matched = memCards[b].matched = true;
+        memMatches++;
+        const matchesEl = document.getElementById('mem-matches');
+        if (matchesEl) matchesEl.textContent = memMatches;
+        memFlipped = []; memLocked = false;
+        if (memMatches === 8) {
+            const statusEl = document.getElementById('mem-status');
+            if (statusEl) statusEl.textContent = `All pairs found in ${memMoves} moves! 🎉💕`;
+        }
+        memRender();
+    } else {
+        setTimeout(() => {
+            memCards[a].flipped = memCards[b].flipped = false;
+            memFlipped = []; memLocked = false;
+            memRender();
+        }, 900);
+    }
+}
+
+document.getElementById('mem-reset')?.addEventListener('click', memInit);
+memInit();
+
+// ── Slide Puzzle ───────────────────────────────────────────────────────────
+let puzzleTiles = [], puzzleMoves = 0, puzzleWon = false;
+
+function puzzleInit() {
+    puzzleTiles = [...Array(15).keys()].map(i => i + 1);
+    puzzleTiles.push(0);
+    do { puzzleShuffle(); } while (!puzzleSolvable() || puzzleSolved());
+    puzzleMoves = 0; puzzleWon = false;
+    const movesEl = document.getElementById('puzzle-moves');
+    const statusEl = document.getElementById('puzzle-status');
+    if (movesEl) movesEl.textContent = 0;
+    if (statusEl) statusEl.textContent = 'Slide tiles to arrange 1–15 in order! 🧩';
+    puzzleRender();
+}
+
+function puzzleShuffle() {
+    for (let i = puzzleTiles.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [puzzleTiles[i], puzzleTiles[j]] = [puzzleTiles[j], puzzleTiles[i]];
+    }
+}
+
+function puzzleSolvable() {
+    const arr = puzzleTiles.filter(t => t !== 0);
+    let inv = 0;
+    for (let i = 0; i < arr.length; i++)
+        for (let j = i + 1; j < arr.length; j++)
+            if (arr[i] > arr[j]) inv++;
+    const blankRowFromBottom = 3 - Math.floor(puzzleTiles.indexOf(0) / 4);
+    return (inv + blankRowFromBottom) % 2 === 0;
+}
+
+function puzzleSolved() {
+    return puzzleTiles.every((v, i) => v === (i === 15 ? 0 : i + 1));
+}
+
+function puzzleMove(i) {
+    if (puzzleWon) return;
+    const empty = puzzleTiles.indexOf(0);
+    const r = Math.floor(i / 4), c = i % 4, er = Math.floor(empty / 4), ec = empty % 4;
+    if (Math.abs(r - er) + Math.abs(c - ec) !== 1) return;
+    [puzzleTiles[i], puzzleTiles[empty]] = [puzzleTiles[empty], puzzleTiles[i]];
+    puzzleMoves++;
+    const movesEl = document.getElementById('puzzle-moves');
+    if (movesEl) movesEl.textContent = puzzleMoves;
+    if (puzzleSolved()) {
+        puzzleWon = true;
+        const statusEl = document.getElementById('puzzle-status');
+        if (statusEl) statusEl.textContent = `Solved in ${puzzleMoves} moves! 🎉🧩`;
+    }
+    puzzleRender();
+}
+
+function puzzleRender() {
+    const board = document.getElementById('puzzle-board');
+    if (!board) return;
+    board.innerHTML = '';
+    puzzleTiles.forEach((val, i) => {
+        const tile = document.createElement('div');
+        if (val === 0) {
+            tile.className = 'puzzle-tile empty';
+        } else {
+            tile.className = 'puzzle-tile num' + (puzzleWon ? ' solved' : '');
+            tile.textContent = val;
+            tile.addEventListener('click', () => puzzleMove(i));
+        }
+        board.appendChild(tile);
+    });
+}
+
+document.getElementById('puzzle-reset')?.addEventListener('click', puzzleInit);
+puzzleInit();
+
 window.onload = () => {
     checkAuth();
     createHearts();

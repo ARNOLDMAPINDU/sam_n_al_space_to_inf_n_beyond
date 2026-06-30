@@ -193,6 +193,52 @@
             </div>
         </section>
 
+        <!-- Game Room -->
+        <section class="games-section">
+            <div class="glass-box games-container">
+                <h3>Game Room 🎮</h3>
+                <p class="games-hint">Take a break &amp; play together 💕</p>
+                <div class="games-tab-bar">
+                    <button class="game-tab active" data-game="tictactoe">❌⭕ Tic Tac Toe</button>
+                    <button class="game-tab" data-game="memory">🃏 Memory Cards</button>
+                    <button class="game-tab" data-game="puzzle">🧩 Slide Puzzle</button>
+                </div>
+
+                <!-- Tic Tac Toe -->
+                <div id="game-tictactoe" class="game-panel">
+                    <p id="ttt-status" class="game-status">Arnold's turn (❌)</p>
+                    <div id="ttt-board" class="ttt-board"></div>
+                    <button id="ttt-reset" class="mini-btn ttt-reset-btn">New Game 🔄</button>
+                    <div class="ttt-score">
+                        <span>Arnold ❌ <strong id="ttt-score-arnold">0</strong></span>
+                        <span>Ties <strong id="ttt-score-tie">0</strong></span>
+                        <span>Varaidzo ⭕ <strong id="ttt-score-varaidzo">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Memory Cards -->
+                <div id="game-memory" class="game-panel hidden">
+                    <p id="mem-status" class="game-status">Flip two cards to find a match! 💕</p>
+                    <div id="mem-board" class="mem-board"></div>
+                    <div class="game-footer">
+                        <span>Moves: <strong id="mem-moves">0</strong></span>
+                        <button id="mem-reset" class="mini-btn">Shuffle 🔀</button>
+                        <span>Pairs: <strong id="mem-matches">0</strong>/8</span>
+                    </div>
+                </div>
+
+                <!-- Slide Puzzle -->
+                <div id="game-puzzle" class="game-panel hidden">
+                    <p id="puzzle-status" class="game-status">Slide tiles to arrange 1–15 in order! 🧩</p>
+                    <div id="puzzle-board" class="puzzle-board"></div>
+                    <div class="game-footer">
+                        <span>Moves: <strong id="puzzle-moves">0</strong></span>
+                        <button id="puzzle-reset" class="mini-btn">Shuffle 🔀</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- New Growth Features -->
         <div class="growth-grid">
             <!-- Connection Prompts -->
