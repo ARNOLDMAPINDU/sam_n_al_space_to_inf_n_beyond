@@ -1,6 +1,6 @@
 // 1. MODULE IMPORTS
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, onValue, push, limitToLast, onChildAdded, remove, onDisconnect, query } from "firebase/database";
+import { getDatabase, ref, set, onValue, push, onChildAdded, remove, onDisconnect } from "firebase/database";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 // --- FIREBASE CONFIGURATION ---
@@ -332,8 +332,11 @@ function setupSync() {
         }
     });
 
-    // 4. Chat
-    const chatRef = query(ref(db, 'chat'), limitToLast(50));
+    // 4. Chat — no limitToLast here. Nothing was ever deleted from Firebase;
+    // capping the query to the last 50 just stopped loading anything older
+    // than that into the UI, which read as "old chats disappearing." Load
+    // the full history instead.
+    const chatRef = ref(db, 'chat');
     onChildAdded(chatRef, (snap) => displayMessage(snap.val()), (err) => console.error("Chat sync error:", err));
 
     // 5. Quests
