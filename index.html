@@ -87,7 +87,11 @@
         <section class="response-section">
             <div id="response-box" class="glass-box">
                 <div id="partner-mood-alert" class="partner-mood-alert hidden">
-                    <span id="partner-name-label">Partner</span> is feeling <span id="partner-mood-text">...</span> ❤️
+                    <p><span id="partner-name-label">Partner</span> is feeling <span id="partner-mood-text">...</span> ❤️</p>
+                    <button id="mood-ack-btn" class="mini-btn">Got it 💕</button>
+                </div>
+                <div id="my-mood-sent-alert" class="partner-mood-alert my-mood-sent-alert hidden">
+                    <span id="my-mood-sent-text"></span>
                 </div>
                 <p id="arnold-message">Select a mood to see my message for you...</p>
             </div>
@@ -243,6 +247,16 @@
                     <div class="game-footer">
                         <span>Moves: <strong id="puzzle-moves">0</strong></span>
                         <button id="puzzle-reset" class="mini-btn">Shuffle 🔀</button>
+                    </div>
+                </div>
+
+                <!-- Game Chat -->
+                <div class="game-chat">
+                    <h4>Game Chat 💬</h4>
+                    <div id="game-chat-messages" class="game-chat-messages"></div>
+                    <div class="game-chat-input-area">
+                        <input type="text" id="game-chat-input" placeholder="Say something while you play..." />
+                        <button id="game-chat-send-btn" class="mini-btn">Send 💌</button>
                     </div>
                 </div>
             </div>

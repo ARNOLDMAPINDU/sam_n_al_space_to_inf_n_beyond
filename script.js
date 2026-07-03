@@ -63,6 +63,7 @@ let currentUser = "";
 let partnerName = "";
 let lastRenderedDate = null;
 let pendingReply = null;
+let lastPartnerMood = null;
 
 // ── Mood ───────────────────────────────────────────────────────────────────
 moodBtns.forEach(btn => {
@@ -83,7 +84,7 @@ function updateMyMood(mood, isCustom = false, customText = "") {
     if (!data) return;
 
     if (db && currentUser) {
-        const moodObj = { mood: isCustom ? customText : mood, moodClass: data.class, timestamp: Date.now() };
+        const moodObj = { mood: isCustom ? customText : mood, moodClass: data.class, timestamp: Date.now(), acknowledged: false };
         set(ref(db, 'moods/' + currentUser.toLowerCase()), moodObj);
         push(ref(db, 'moodHistory/' + currentUser.toLowerCase()), moodObj);
     }
@@ -102,6 +103,14 @@ function applyMoodUI(data, label) {
         if (content) content.innerHTML = `<span>${(label || "").toUpperCase()} VIBES</span>`;
     }
     createHearts();
+}
+
+// Clears the partner's feeling alert on both ends — writes acknowledged:true
+// back to Firebase so the sender's "waiting to be seen" receipt clears too.
+function acknowledgeMood() {
+    if (!db || !partnerName || !lastPartnerMood) return;
+    set(ref(db, 'moods/' + partnerName.toLowerCase()), { ...lastPartnerMood, acknowledged: true });
+    document.getElementById('partner-mood-alert')?.classList.add('hidden');
 }
 
 function createHearts(count = 15, emojis = ['❤️']) {
@@ -312,23 +321,43 @@ function setupSync() {
         } else if (lastSeenEl) { lastSeenEl.classList.add('hidden'); }
     });
 
-    // 3. Mood sync
+    // 3. Mood sync — a shared feeling shows on BOTH ends (the partner sees an
+    // alert to acknowledge, the sender sees a "waiting to be seen" receipt)
+    // and only disappears once the partner acknowledges it, never on a timer.
     onValue(ref(db, 'moods'), (snap) => {
         const moods = snap.val();
         if (!moods) return;
         const a = moods.arnold, v = moods.varaidzo;
         const latest = !a ? v : !v ? a : (a.timestamp > v.timestamp ? a : v);
         if (latest && bodyEl) bodyEl.className = latest.moodClass || 'mood-default';
+
+        // Partner's feeling — stays visible to me until I acknowledge it.
         const pd = moods[partnerName.toLowerCase()];
-        if (pd && Date.now() - pd.timestamp < 15000) {
-            const alertEl = document.getElementById('partner-mood-alert');
-            const textEl = document.getElementById('partner-mood-text');
-            const nameEl = document.getElementById('partner-name-label');
-            if (alertEl && textEl) {
+        lastPartnerMood = pd || null;
+        const alertEl = document.getElementById('partner-mood-alert');
+        const textEl = document.getElementById('partner-mood-text');
+        const nameEl = document.getElementById('partner-name-label');
+        if (alertEl && textEl) {
+            if (pd && !pd.acknowledged) {
                 if (nameEl) nameEl.textContent = partnerName;
                 textEl.textContent = pd.mood;
                 alertEl.classList.remove('hidden');
-                setTimeout(() => alertEl.classList.add('hidden'), 8000);
+            } else {
+                alertEl.classList.add('hidden');
+            }
+        }
+
+        // My own feeling — shown to me too, as a receipt that clears only
+        // once my partner has acknowledged seeing it.
+        const md = moods[currentUser.toLowerCase()];
+        const sentEl = document.getElementById('my-mood-sent-alert');
+        const sentTextEl = document.getElementById('my-mood-sent-text');
+        if (sentEl && sentTextEl) {
+            if (md && !md.acknowledged) {
+                sentTextEl.textContent = `Waiting for ${partnerName} to see that you're feeling "${md.mood}" 💕`;
+                sentEl.classList.remove('hidden');
+            } else {
+                sentEl.classList.add('hidden');
             }
         }
     });
@@ -338,7 +367,10 @@ function setupSync() {
     // than that into the UI, which read as "old chats disappearing." Load
     // the full history instead.
     const chatRef = ref(db, 'chat');
-    onChildAdded(chatRef, (snap) => displayMessage(snap.val()), (err) => console.error("Chat sync error:", err));
+    onChildAdded(chatRef, (snap) => {
+        displayMessage(snap.val());
+        displayGameChatMessage(snap.val());
+    }, (err) => console.error("Chat sync error:", err));
 
     // 5. Quests
     onValue(ref(db, 'quests'), (snap) => {
@@ -401,12 +433,14 @@ function setupSync() {
         refreshMilestoneCountdown(Object.values(items));
     });
 
-    // 12. SOS — "I need you" alerts
+    // 12. SOS — "I need you" alerts. Shows regardless of how much time has
+    // passed since it was sent — it must stay pending until acknowledged,
+    // not silently expire if the partner opens the app late.
     onValue(ref(db, 'sos/' + partnerName.toLowerCase()), (snap) => {
         const data = snap.val();
         if (!data || !data.timestamp) return;
         const lastSeen = parseInt(localStorage.getItem('last-sos-seen') || '0', 10);
-        if (data.timestamp > lastSeen && Date.now() - data.timestamp < SOS_ALERT_WINDOW_MS) {
+        if (data.timestamp > lastSeen) {
             showSosAlert();
         }
     });
@@ -497,7 +531,6 @@ if (syncBtn) {
 
 // ── SOS: "I need you" ────────────────────────────────────────────────────────
 const SOS_COOLDOWN_MS = 5 * 60 * 1000; // wait between pings so it can't be spammed
-const SOS_ALERT_WINDOW_MS = 10 * 60 * 1000; // how long an SOS stays "fresh" for the partner
 
 function sendSOS() {
     if (!db || !currentUser || currentUser === 'Salpha') return;
@@ -667,6 +700,38 @@ function displayMessage(msg) {
     container.scrollTop = container.scrollHeight;
 }
 
+// ── Game Chat (compact, shares the same 'chat' conversation as the main chat) ─
+function sendGameMessage() {
+    const inputEl = document.getElementById('game-chat-input');
+    const text = inputEl?.value.trim();
+    if (!text || !currentUser) return;
+
+    push(ref(db, 'chat'), { sender: currentUser, text, sentAt: Date.now() })
+        .then(() => { if (inputEl) inputEl.value = ''; })
+        .catch(err => console.error("Game chat push error:", err));
+}
+
+function displayGameChatMessage(msg) {
+    const container = document.getElementById('game-chat-messages');
+    if (!container) return;
+
+    const msgId = msg.sentAt || (msg.sender + (msg.text || msg.mediaUrl));
+    if (document.getElementById('game-msg-' + msgId)) return;
+
+    const msgDiv = document.createElement('div');
+    msgDiv.id = 'game-msg-' + msgId;
+    msgDiv.classList.add('message', msg.sender === "Arnold" ? 'arnold' : 'varaidzo');
+
+    const timeStr = formatMessageTime(msg.sentAt) || '';
+    let html = `<span class="sender-name">${msg.sender} • ${timeStr}</span>`;
+    if (msg.text) html += `<p>${msg.text}</p>`;
+    else if (msg.mediaUrl) html += `<p>${msg.mediaType?.startsWith('image/') ? '📷 Photo' : '🎥 Video'}</p>`;
+    msgDiv.innerHTML = html;
+
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
+}
+
 function setReply(msg, msgId) {
     pendingReply = {
         id: msgId,
@@ -697,6 +762,8 @@ function scrollToMessage(msgId) {
 
 document.getElementById('send-btn')?.addEventListener('click', sendMessage);
 document.getElementById('chat-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+document.getElementById('game-chat-send-btn')?.addEventListener('click', sendGameMessage);
+document.getElementById('game-chat-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendGameMessage(); });
 document.getElementById('reply-cancel-btn')?.addEventListener('click', cancelReply);
 
 // ── Media upload ───────────────────────────────────────────────────────────
@@ -1265,6 +1332,7 @@ if (logoutBtn) logoutBtn.addEventListener('click', logout);
 document.getElementById('salpha-logout-btn')?.addEventListener('click', logout);
 document.getElementById('sos-btn')?.addEventListener('click', sendSOS);
 document.getElementById('sos-acknowledge-btn')?.addEventListener('click', acknowledgeSos);
+document.getElementById('mood-ack-btn')?.addEventListener('click', acknowledgeMood);
 document.getElementById('add-milestone-btn')?.addEventListener('click', addMilestone);
 document.getElementById('milestone-title-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') addMilestone(); });
 

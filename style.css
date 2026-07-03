@@ -254,6 +254,20 @@ body {
     font-weight: 800;
 }
 
+.partner-mood-alert #mood-ack-btn {
+    margin-top: 0.6rem;
+}
+
+.my-mood-sent-alert {
+    animation: none;
+    opacity: 0.8;
+    font-size: 0.85rem;
+}
+
+.my-mood-sent-alert span {
+    font-weight: 500;
+}
+
 .container {
     max-width: 800px;
     margin: 0 auto;
@@ -711,6 +725,65 @@ header {
     font-size: 0.9rem;
     flex-shrink: 0;
     margin: 0;
+}
+
+/* Game Chat — compact chat inside the Game Room, shares the same
+   conversation as the main chat so nothing said during play is lost. */
+.game-chat {
+    margin-top: 1.5rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.game-chat h4 {
+    margin-bottom: 0.6rem;
+    font-size: 1rem;
+    color: var(--accent-color);
+}
+
+.game-chat-messages {
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-right: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.game-chat-messages::-webkit-scrollbar { width: 5px; }
+.game-chat-messages::-webkit-scrollbar-thumb { background: rgba(255, 64, 129, 0.3); border-radius: 10px; }
+
+.game-chat-messages .message {
+    font-size: 0.85rem;
+    padding: 0.55rem 0.95rem;
+    max-width: 85%;
+}
+
+.game-chat-input-area {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.4rem;
+    border-radius: 50px;
+}
+
+#game-chat-input {
+    flex-grow: 1;
+    padding: 0.6rem 1rem;
+    border-radius: 50px;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+#game-chat-send-btn {
+    padding: 0.55rem 1.1rem;
+    font-size: 0.85rem;
+    flex-shrink: 0;
 }
 
 .mini-btn {
