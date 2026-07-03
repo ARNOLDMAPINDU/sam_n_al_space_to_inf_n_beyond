@@ -367,10 +367,10 @@ function setupSync() {
     // than that into the UI, which read as "old chats disappearing." Load
     // the full history instead.
     const chatRef = ref(db, 'chat');
-    onChildAdded(chatRef, (snap) => {
-        displayMessage(snap.val());
-        displayGameChatMessage(snap.val());
-    }, (err) => console.error("Chat sync error:", err));
+    onChildAdded(chatRef, (snap) => displayMessage(snap.val()), (err) => console.error("Chat sync error:", err));
+
+    // 4b. Game Chat — its own separate conversation, kept apart from the main chat.
+    onChildAdded(ref(db, 'gameChat'), (snap) => displayGameChatMessage(snap.val()), (err) => console.error("Game chat sync error:", err));
 
     // 5. Quests
     onValue(ref(db, 'quests'), (snap) => {
@@ -700,13 +700,13 @@ function displayMessage(msg) {
     container.scrollTop = container.scrollHeight;
 }
 
-// ── Game Chat (compact, shares the same 'chat' conversation as the main chat) ─
+// ── Game Chat (its own separate conversation, stored apart from the main chat) ─
 function sendGameMessage() {
     const inputEl = document.getElementById('game-chat-input');
     const text = inputEl?.value.trim();
     if (!text || !currentUser) return;
 
-    push(ref(db, 'chat'), { sender: currentUser, text, sentAt: Date.now() })
+    push(ref(db, 'gameChat'), { sender: currentUser, text, sentAt: Date.now() })
         .then(() => { if (inputEl) inputEl.value = ''; })
         .catch(err => console.error("Game chat push error:", err));
 }

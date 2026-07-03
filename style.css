@@ -727,8 +727,8 @@ header {
     margin: 0;
 }
 
-/* Game Chat — compact chat inside the Game Room, shares the same
-   conversation as the main chat so nothing said during play is lost. */
+/* Game Chat — its own separate conversation inside the Game Room, kept
+   apart from the main chat. */
 .game-chat {
     margin-top: 1.5rem;
     padding-top: 1.2rem;
