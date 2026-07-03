@@ -198,6 +198,7 @@ function showApp(userName) {
     startMilestoneCountdown();
     initPromptDisplay();
     loadMysteryBox();
+    initTicTacToeSync();
 
     const chatLabel = document.getElementById('chat-user-label');
     if (chatLabel) chatLabel.textContent = `Logged in as: ${currentUser}`;
@@ -833,16 +834,15 @@ const dailyQuests = [
     { title: "Morning Ritual", desc: "Each share your ideal morning routine — compare and find one habit you both want to adopt! 🌄", category: "challenge" },
 ];
 
-let questState = { date: "", varaidzo: false, arnold: false, index: 0 };
+let questState = { varaidzo: false, arnold: false, index: 0, loggedIndex: -1 };
 
-function loadDailyQuest() {
-    const today = new Date().toDateString();
+// No calendar involved: a quest just sits here, as long as it takes, until you
+// both mark it done. First-ever load only — after that, Firebase already has state.
+function ensureQuestReady() {
     if (!db || currentUser !== "Arnold") return;
     onValue(ref(db, 'quests'), (snap) => {
-        const state = snap.val();
-        if (!state || state.date !== today) {
+        if (!snap.exists()) {
             set(ref(db, 'quests'), {
-                date: today,
                 varaidzo: false,
                 arnold: false,
                 index: Math.floor(Math.random() * dailyQuests.length)
@@ -868,11 +868,16 @@ function updateQuestUI() {
     const bar = document.getElementById('love-progress');
     if (bar) bar.style.width = both ? '100%' : one ? '50%' : '0%';
 
-    // Log completed quests for level calculation
-    if (both && questState.date) {
-        const safeDate = questState.date.replace(/\s/g, '_');
-        set(ref(db, `questLog/${safeDate}`), true);
+    // Log this quest for the level count exactly once, the moment you both
+    // finish it — however long that took. One client writes it to avoid a
+    // double-log race between two devices completing at the same instant.
+    if (both && db && currentUser === "Arnold" && questState.loggedIndex !== questState.index) {
+        push(ref(db, 'questLog'), { quest: quest.title, completedAt: Date.now() });
+        set(ref(db, 'quests/loggedIndex'), questState.index);
     }
+
+    const newQuestBtn = document.getElementById('new-quest-btn');
+    if (newQuestBtn) newQuestBtn.classList.toggle('hidden', !both);
 
     updateQuestButtons();
 }
@@ -892,6 +897,19 @@ document.getElementById('check-varaidzo')?.addEventListener('click', () => {
 });
 document.getElementById('check-arnold')?.addEventListener('click', () => {
     if (currentUser === "Arnold") set(ref(db, 'quests/arnold'), !questState.arnold);
+});
+
+// Only unlocked once you've both checked the current quest done — pulls a
+// fresh one on request, never on a timer.
+document.getElementById('new-quest-btn')?.addEventListener('click', () => {
+    if (!db || !questState.varaidzo || !questState.arnold) return;
+    let newIndex = questState.index;
+    if (dailyQuests.length > 1) {
+        while (newIndex === questState.index) {
+            newIndex = Math.floor(Math.random() * dailyQuests.length);
+        }
+    }
+    set(ref(db, 'quests'), { varaidzo: false, arnold: false, index: newIndex });
 });
 
 // ── Mystery Gift Box ────────────────────────────────────────────────────────
@@ -940,20 +958,18 @@ const mysteryRevealIcon = document.getElementById('mystery-reveal-icon');
 const mysteryRevealText = document.getElementById('mystery-reveal-text');
 const mysteryRevealTag = document.getElementById('mystery-reveal-tag');
 const mysteryPartnerStatus = document.getElementById('mystery-partner-status');
+const newMysteryBtn = document.getElementById('new-mystery-btn');
 
 let myMysteryOpened = false;
 
-function mysteryDateKey() {
-    return new Date().toDateString().replace(/\s/g, '_');
-}
-
+// No date key: your surprise stays put until you ask for another one — never
+// swapped out from under you by the calendar.
 function loadMysteryBox() {
     if (!db || !currentUser) return;
     const myKey = currentUser.toLowerCase();
     const partnerKey = partnerName.toLowerCase();
-    const date = mysteryDateKey();
 
-    onValue(ref(db, `mysteryBox/${date}/${myKey}`), (snap) => {
+    onValue(ref(db, `mysteryBox/${myKey}`), (snap) => {
         const data = snap.val();
         if (data) {
             myMysteryOpened = true;
@@ -964,19 +980,20 @@ function loadMysteryBox() {
         }
     });
 
-    onValue(ref(db, `mysteryBox/${date}/${partnerKey}`), (snap) => {
+    onValue(ref(db, `mysteryBox/${partnerKey}`), (snap) => {
         if (!mysteryPartnerStatus) return;
         mysteryPartnerStatus.textContent = snap.val()
-            ? `${partnerName} opened their box too! 🎉`
-            : `${partnerName} hasn't opened their box yet 🔒`;
+            ? `${partnerName} has opened their surprise too! 🎉`
+            : `${partnerName} hasn't opened their surprise yet 🔒`;
     });
 }
 
 function resetMysteryBoxUI() {
     if (mysteryReveal) mysteryReveal.classList.add('hidden');
     if (mysteryBoxEl) mysteryBoxEl.classList.remove('opened');
+    if (newMysteryBtn) newMysteryBtn.classList.add('hidden');
     if (mysteryStatus) {
-        mysteryStatus.textContent = "Tap the box to open today's surprise!";
+        mysteryStatus.textContent = "Tap the box to open your surprise, whenever you're ready!";
         mysteryStatus.classList.remove('hidden');
     }
 }
@@ -1000,13 +1017,25 @@ function showMysteryReveal(giftIndex, animate) {
             mysteryReveal.classList.add('pop-in');
         }
     }
+    if (newMysteryBtn) newMysteryBtn.classList.remove('hidden');
+}
+
+function drawMysteryGift(animate) {
+    const myKey = currentUser.toLowerCase();
+    const boxRef = ref(db, `mysteryBox/${myKey}`);
+    const giftIndex = Math.floor(Math.random() * mysteryGifts.length);
+    myMysteryOpened = true;
+    set(boxRef, { giftIndex, openedAt: Date.now() });
+    setTimeout(() => {
+        showMysteryReveal(giftIndex, animate);
+        createHearts(20, ['🎁', '💖', '✨', '💫', '🌟', '💝', '💌']);
+    }, animate ? 500 : 0);
 }
 
 function openMysteryBox() {
     if (!db || !currentUser || myMysteryOpened) return;
     const myKey = currentUser.toLowerCase();
-    const date = mysteryDateKey();
-    const boxRef = ref(db, `mysteryBox/${date}/${myKey}`);
+    const boxRef = ref(db, `mysteryBox/${myKey}`);
 
     if (mysteryBoxEl) {
         mysteryBoxEl.classList.add('shaking');
@@ -1015,17 +1044,22 @@ function openMysteryBox() {
 
     onValue(boxRef, (snap) => {
         if (snap.val()) { showMysteryReveal(snap.val().giftIndex, true); return; }
-        const giftIndex = Math.floor(Math.random() * mysteryGifts.length);
-        myMysteryOpened = true;
-        set(boxRef, { giftIndex, openedAt: Date.now() });
-        setTimeout(() => {
-            showMysteryReveal(giftIndex, true);
-            createHearts(20, ['🎁', '💖', '✨', '💫', '🌟', '💝', '💌']);
-        }, 500);
+        drawMysteryGift(true);
     }, { onlyOnce: true });
 }
 
+// Explicit "I'm ready for another one" — the only way a new surprise appears.
+function requestNewMysteryGift() {
+    if (!db || !currentUser) return;
+    if (mysteryBoxEl) {
+        mysteryBoxEl.classList.add('shaking');
+        setTimeout(() => mysteryBoxEl?.classList.remove('shaking'), 600);
+    }
+    drawMysteryGift(true);
+}
+
 mysteryBoxEl?.addEventListener('click', openMysteryBox);
+newMysteryBtn?.addEventListener('click', requestNewMysteryGift);
 
 // ── Connection prompts ─────────────────────────────────────────────────────
 const connectionPrompts = [
@@ -1250,11 +1284,15 @@ document.querySelectorAll('.game-tab').forEach(tab => {
     });
 });
 
-// ── Tic Tac Toe ────────────────────────────────────────────────────────────
-let tttBoard = Array(9).fill(null);
+// ── Tic Tac Toe (synced live across both devices via Firebase) ─────────────
+// Board cells use "" for empty rather than null — Firebase Realtime Database
+// silently deletes null children, which would collapse the array and break
+// index alignment. "" is falsy (same truthiness as null for our checks) but
+// is a real stored value, so all 9 slots always round-trip correctly.
+let tttBoard = Array(9).fill("");
 let tttCurrent = 'X';
+let tttResult = "";           // "" while playing, else "X" / "O" / "tie"
 let tttScores = { X: 0, O: 0, tie: 0 };
-let tttOver = false;
 
 const TTT_LINES = [
     [0,1,2],[3,4,5],[6,7,8],
@@ -1264,50 +1302,65 @@ const TTT_LINES = [
 
 function tttName(sym) { return sym === 'X' ? 'Arnold' : 'Varaidzo'; }
 
+// Which symbol *this* device controls — null for anyone who isn't logged in
+// as Arnold or Varaidzo (e.g. the Salpha dashboard), so they can spectate
+// but never move for either side.
+function tttMySymbol() {
+    if (currentUser === 'Arnold') return 'X';
+    if (currentUser === 'Varaidzo') return 'O';
+    return null;
+}
+
+function tttComputeWinner(board) {
+    for (const [a, b, c] of TTT_LINES) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+    }
+    return null;
+}
+
 function tttRender() {
-    const board = document.getElementById('ttt-board');
-    if (!board) return;
-    board.innerHTML = '';
+    const boardEl = document.getElementById('ttt-board');
+    if (!boardEl) return;
+    const mySymbol = tttMySymbol();
+    const myTurn = !tttResult && mySymbol === tttCurrent;
+    boardEl.classList.toggle('waiting', !myTurn);
+
+    boardEl.innerHTML = '';
     tttBoard.forEach((val, i) => {
         const cell = document.createElement('button');
         cell.className = 'ttt-cell' + (val ? ' taken' : '');
         cell.textContent = val === 'X' ? '❌' : val === 'O' ? '⭕' : '';
+        cell.setAttribute('aria-label', val ? `${tttName(val)}'s mark` : `Empty cell ${i + 1}`);
         cell.addEventListener('click', () => tttMove(i));
-        board.appendChild(cell);
+        boardEl.appendChild(cell);
     });
+
+    if (tttResult && tttResult !== 'tie') tttHighlight(tttResult);
 }
 
-function tttMove(i) {
-    if (tttBoard[i] || tttOver) return;
-    tttBoard[i] = tttCurrent;
-    const winner = tttWinner();
+function tttUpdateStatusText() {
     const statusEl = document.getElementById('ttt-status');
-    if (winner) {
-        tttOver = true;
-        tttScores[winner]++;
-        tttRender();
-        tttHighlight(winner);
-        if (statusEl) statusEl.textContent = `${tttName(winner)} wins! 🎉`;
-        document.getElementById('ttt-score-arnold').textContent = tttScores.X;
-        document.getElementById('ttt-score-varaidzo').textContent = tttScores.O;
-    } else if (tttBoard.every(Boolean)) {
-        tttOver = true;
-        tttScores.tie++;
-        tttRender();
-        if (statusEl) statusEl.textContent = "It's a tie! 🤝";
-        document.getElementById('ttt-score-tie').textContent = tttScores.tie;
+    if (!statusEl) return;
+    if (tttResult === 'tie') {
+        statusEl.textContent = "It's a tie! 🤝";
+    } else if (tttResult) {
+        statusEl.textContent = `${tttName(tttResult)} wins! 🎉`;
     } else {
-        tttCurrent = tttCurrent === 'X' ? 'O' : 'X';
-        if (statusEl) statusEl.textContent = `${tttName(tttCurrent)}'s turn (${tttCurrent === 'X' ? '❌' : '⭕'})`;
-        tttRender();
+        const mySymbol = tttMySymbol();
+        const mark = tttCurrent === 'X' ? '❌' : '⭕';
+        statusEl.textContent = mySymbol === tttCurrent
+            ? `Your turn (${mark})`
+            : `Waiting for ${tttName(tttCurrent)}'s move (${mark})...`;
     }
 }
 
-function tttWinner() {
-    for (const [a, b, c] of TTT_LINES) {
-        if (tttBoard[a] && tttBoard[a] === tttBoard[b] && tttBoard[a] === tttBoard[c]) return tttBoard[a];
-    }
-    return null;
+function tttUpdateScoreboard() {
+    const scoreArnold = document.getElementById('ttt-score-arnold');
+    const scoreVaraidzo = document.getElementById('ttt-score-varaidzo');
+    const scoreTie = document.getElementById('ttt-score-tie');
+    if (scoreArnold) scoreArnold.textContent = tttScores.X || 0;
+    if (scoreVaraidzo) scoreVaraidzo.textContent = tttScores.O || 0;
+    if (scoreTie) scoreTie.textContent = tttScores.tie || 0;
 }
 
 function tttHighlight(winner) {
@@ -1322,13 +1375,61 @@ function tttHighlight(winner) {
     }, 30);
 }
 
-function tttReset() {
-    tttBoard = Array(9).fill(null);
-    tttCurrent = 'X';
-    tttOver = false;
-    const statusEl = document.getElementById('ttt-status');
-    if (statusEl) statusEl.textContent = "Arnold's turn (❌)";
+// Applies a snapshot received from Firebase — this is the ONLY place local
+// tic-tac-toe state changes, so both devices always render the same board.
+function tttApplyState(state) {
+    const board = Array.isArray(state.board) ? state.board : Object.values(state.board || {});
+    tttBoard = Array.from({ length: 9 }, (_, i) => board[i] || "");
+    tttCurrent = state.current || 'X';
+    tttResult = state.winner || "";
+    tttScores = state.scores || { X: 0, O: 0, tie: 0 };
+
     tttRender();
+    tttUpdateStatusText();
+    tttUpdateScoreboard();
+}
+
+function tttMove(i) {
+    if (!db || tttResult || tttBoard[i]) return;
+    const mySymbol = tttMySymbol();
+    if (!mySymbol || mySymbol !== tttCurrent) return; // not your turn, not a player
+
+    const board = [...tttBoard];
+    board[i] = mySymbol;
+    const winner = tttComputeWinner(board);
+    const isTie = !winner && board.every(Boolean);
+    const scores = { ...tttScores };
+    if (winner) scores[winner] = (scores[winner] || 0) + 1;
+    if (isTie) scores.tie = (scores.tie || 0) + 1;
+
+    set(ref(db, 'ticTacToe'), {
+        board,
+        current: mySymbol === 'X' ? 'O' : 'X',
+        winner: winner || (isTie ? 'tie' : ""),
+        scores
+    });
+}
+
+// Either partner can start a fresh round — scores carry over, only the board clears.
+function tttReset() {
+    if (!db) return;
+    set(ref(db, 'ticTacToe'), { board: Array(9).fill(""), current: 'X', winner: "", scores: tttScores });
+}
+
+function initTicTacToeSync() {
+    if (!db) return;
+    onValue(ref(db, 'ticTacToe'), (snap) => {
+        const state = snap.val();
+        if (!state) {
+            // First-ever load for this couple: one client seeds the shared
+            // starting state so there's something for both to sync against.
+            if (currentUser === 'Arnold') {
+                set(ref(db, 'ticTacToe'), { board: Array(9).fill(""), current: 'X', winner: "", scores: { X: 0, O: 0, tie: 0 } });
+            }
+            return;
+        }
+        tttApplyState(state);
+    });
 }
 
 document.getElementById('ttt-reset')?.addEventListener('click', tttReset);
@@ -1486,5 +1587,5 @@ puzzleInit();
 window.onload = () => {
     checkAuth();
     createHearts();
-    loadDailyQuest();
+    ensureQuestReady();
 };

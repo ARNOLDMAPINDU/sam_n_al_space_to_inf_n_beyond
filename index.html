@@ -135,13 +135,14 @@
         <section class="play-section">
             <div class="glass-box quest-container">
                 <div class="quest-header">
-                    <h3>Daily Co-op Quests 🎮</h3>
+                    <h3>Our Co-op Quest 🎮</h3>
                     <div class="level-badge">Level <span id="love-level">1</span></div>
                 </div>
+                <p class="quest-pace-hint">No clock on this one — it stays right here until you've both really done it.</p>
                 <div class="progress-bar-container">
                     <div id="love-progress" class="progress-bar" style="width: 0%"></div>
                 </div>
-                
+
                 <div id="daily-quest-card" class="quest-card">
                     <p id="quest-category-tag" class="quest-tag category-romance">ROMANCE</p>
                     <h4 id="quest-title">Loading quest...</h4>
@@ -151,6 +152,8 @@
                         <button id="check-varaidzo" class="quest-check-btn">Varaidzo Done</button>
                         <button id="check-arnold" class="quest-check-btn">Arnold Done</button>
                     </div>
+
+                    <button id="new-quest-btn" class="quest-next-btn hidden">You both finished it — get a new quest ✨</button>
                 </div>
 
                 <div class="mini-game">
@@ -177,17 +180,19 @@
         <section class="mystery-section">
             <div class="glass-box mystery-container">
                 <h3>Mystery Gift Box</h3>
-                <p class="mystery-hint">A little surprise from the universe, just for you... ✨</p>
+                <p class="mystery-hint">A little surprise from the universe, just for you... ✨ Open it whenever you're ready — no rush.</p>
 
-                <div id="mystery-box" class="mystery-box" title="Tap to open today's surprise">🎁</div>
+                <div id="mystery-box" class="mystery-box" title="Tap to open your surprise">🎁</div>
 
-                <p id="mystery-status">Tap the box to open today's surprise!</p>
+                <p id="mystery-status">Tap the box to open your surprise, whenever you're ready!</p>
 
                 <div id="mystery-reveal" class="mystery-reveal hidden">
                     <span id="mystery-reveal-tag" class="quest-tag category-romance">SURPRISE</span>
                     <div id="mystery-reveal-icon" class="mystery-reveal-icon">💌</div>
                     <p id="mystery-reveal-text"></p>
                 </div>
+
+                <button id="new-mystery-btn" class="quest-next-btn hidden">Get another surprise 🎁</button>
 
                 <p id="mystery-partner-status" class="mystery-partner-status"></p>
             </div>
@@ -245,8 +250,9 @@
             <section class="growth-card connection-prompts">
                 <div class="glass-box">
                     <h3>Deep Connection</h3>
+                    <p class="quest-pace-hint">Sit with one until you've actually talked it through — then come back for the next.</p>
                     <p id="prompt-display">Ready for a deep conversation?</p>
-                    <button id="next-prompt-btn" class="mood-btn">Get New Prompt ✨</button>
+                    <button id="next-prompt-btn" class="mood-btn">We talked — next prompt ✨</button>
                 </div>
             </section>
 
