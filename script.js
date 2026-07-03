@@ -199,6 +199,7 @@ function showApp(userName) {
     initPromptDisplay();
     loadMysteryBox();
     initTicTacToeSync();
+    initMemorySync();
 
     const chatLabel = document.getElementById('chat-user-label');
     if (chatLabel) chatLabel.textContent = `Logged in as: ${currentUser}`;
@@ -1305,6 +1306,9 @@ const TTT_LINES = [
 
 function tttName(sym) { return sym === 'X' ? 'Arnold' : 'Varaidzo'; }
 
+// No fixed first player — each new game randomly picks who opens.
+function tttRandomStart() { return Math.random() < 0.5 ? 'X' : 'O'; }
+
 // Which symbol *this* device controls — null for anyone who isn't logged in
 // as Arnold or Varaidzo (e.g. the Salpha dashboard), so they can spectate
 // but never move for either side.
@@ -1413,10 +1417,11 @@ function tttMove(i) {
     });
 }
 
-// Either partner can start a fresh round — scores carry over, only the board clears.
+// Either partner can start a fresh round — scores carry over, only the board
+// clears. Who moves first is randomized each time, not fixed to Arnold.
 function tttReset() {
     if (!db) return;
-    set(ref(db, 'ticTacToe'), { board: Array(9).fill(""), current: 'X', winner: "", scores: tttScores });
+    set(ref(db, 'ticTacToe'), { board: Array(9).fill(""), current: tttRandomStart(), winner: "", scores: tttScores });
 }
 
 function initTicTacToeSync() {
@@ -1427,7 +1432,7 @@ function initTicTacToeSync() {
             // First-ever load for this couple: one client seeds the shared
             // starting state so there's something for both to sync against.
             if (currentUser === 'Arnold') {
-                set(ref(db, 'ticTacToe'), { board: Array(9).fill(""), current: 'X', winner: "", scores: { X: 0, O: 0, tie: 0 } });
+                set(ref(db, 'ticTacToe'), { board: Array(9).fill(""), current: tttRandomStart(), winner: "", scores: { X: 0, O: 0, tie: 0 } });
             }
             return;
         }
@@ -1438,10 +1443,18 @@ function initTicTacToeSync() {
 document.getElementById('ttt-reset')?.addEventListener('click', tttReset);
 tttRender();
 
-// ── Memory Cards ───────────────────────────────────────────────────────────
+// ── Memory Cards (synced live across both devices, turn-based like Tic Tac Toe) ─
+// One partner flips a card, then the other partner takes their turn trying to
+// find its match — turns alternate on every single flip, win or lose, and
+// either player can be first (randomized), same rules as tic-tac-toe.
 const MEM_EMOJIS = ['💖','💍','🌹','✨','💌','🦋','🍓','🌸'];
 
-let memCards = [], memFlipped = [], memMatches = 0, memMoves = 0, memLocked = false;
+let memCards = [];              // [{ id, emoji, matched }]
+let memRevealed = [];           // ids currently face-up and not yet resolved (0-2)
+let memTurn = 'X';
+let memScores = { X: 0, O: 0 };
+let memMoves = 0;
+let memPending = false;         // true while a mismatched pair is briefly shown
 
 function memShuffle(arr) {
     const a = [...arr];
@@ -1452,67 +1465,158 @@ function memShuffle(arr) {
     return a;
 }
 
-function memInit() {
-    memCards = memShuffle([...MEM_EMOJIS, ...MEM_EMOJIS]).map((emoji, id) => ({ id, emoji, flipped: false, matched: false }));
-    memFlipped = []; memMatches = 0; memMoves = 0; memLocked = false;
-    const movesEl = document.getElementById('mem-moves');
-    const matchesEl = document.getElementById('mem-matches');
-    const statusEl = document.getElementById('mem-status');
-    if (movesEl) movesEl.textContent = 0;
-    if (matchesEl) matchesEl.textContent = 0;
-    if (statusEl) statusEl.textContent = 'Flip two cards to find a match! 💕';
-    memRender();
+function memName(sym) { return sym === 'X' ? 'Arnold' : 'Varaidzo'; }
+
+// Which symbol *this* device controls — same mapping as tic-tac-toe, so
+// spectators (e.g. the Salpha dashboard) can watch but never flip a card.
+function memMySymbol() {
+    if (currentUser === 'Arnold') return 'X';
+    if (currentUser === 'Varaidzo') return 'O';
+    return null;
+}
+
+function memMatchCount() { return memCards.filter(c => c.matched).length / 2; }
+
+function memNewDeck() {
+    return memShuffle([...MEM_EMOJIS, ...MEM_EMOJIS]).map((emoji, id) => ({ id, emoji, matched: false }));
 }
 
 function memRender() {
     const board = document.getElementById('mem-board');
     if (!board) return;
+    const mySymbol = memMySymbol();
+    const myTurn = memMatchCount() < 8 && !memPending && mySymbol === memTurn;
+    board.classList.toggle('waiting', !myTurn);
+
     board.innerHTML = '';
     memCards.forEach(card => {
+        const faceUp = card.matched || memRevealed.includes(card.id);
         const el = document.createElement('div');
-        el.className = 'mem-card' + (card.flipped ? ' flipped' : '') + (card.matched ? ' matched' : '');
+        el.className = 'mem-card' + (faceUp ? ' flipped' : '') + (card.matched ? ' matched' : '');
         el.innerHTML = `<div class="mem-card-inner"><div class="mem-card-front">💕</div><div class="mem-card-back">${card.emoji}</div></div>`;
         el.addEventListener('click', () => memFlip(card.id));
         board.appendChild(el);
     });
 }
 
-function memFlip(id) {
-    if (memLocked) return;
-    const card = memCards[id];
-    if (!card || card.flipped || card.matched) return;
-    card.flipped = true;
-    memFlipped.push(id);
-    memRender();
-    if (memFlipped.length < 2) return;
+function memUpdateStatusText() {
+    const statusEl = document.getElementById('mem-status');
+    if (!statusEl) return;
+    if (memMatchCount() === 8) {
+        statusEl.textContent = `All pairs found in ${memMoves} moves! 🎉💕`;
+        return;
+    }
+    const mySymbol = memMySymbol();
+    statusEl.textContent = mySymbol === memTurn
+        ? "Your turn — flip a card! 💕"
+        : `Waiting for ${memName(memTurn)} to flip...`;
+}
 
-    memLocked = true;
-    memMoves++;
+function memUpdateScoreboard() {
     const movesEl = document.getElementById('mem-moves');
+    const matchesEl = document.getElementById('mem-matches');
+    const scoreArnold = document.getElementById('mem-score-arnold');
+    const scoreVaraidzo = document.getElementById('mem-score-varaidzo');
     if (movesEl) movesEl.textContent = memMoves;
-    const [a, b] = memFlipped;
-    if (memCards[a].emoji === memCards[b].emoji) {
-        memCards[a].matched = memCards[b].matched = true;
-        memMatches++;
-        const matchesEl = document.getElementById('mem-matches');
-        if (matchesEl) matchesEl.textContent = memMatches;
-        memFlipped = []; memLocked = false;
-        if (memMatches === 8) {
-            const statusEl = document.getElementById('mem-status');
-            if (statusEl) statusEl.textContent = `All pairs found in ${memMoves} moves! 🎉💕`;
-        }
-        memRender();
+    if (matchesEl) matchesEl.textContent = memMatchCount();
+    if (scoreArnold) scoreArnold.textContent = memScores.X || 0;
+    if (scoreVaraidzo) scoreVaraidzo.textContent = memScores.O || 0;
+}
+
+// Applies a snapshot received from Firebase — this is the ONLY place local
+// memory-card state changes, so both devices always render the same board.
+function memApplyState(state) {
+    memCards = Array.isArray(state.cards) ? state.cards : Object.values(state.cards || {});
+    memRevealed = Array.isArray(state.revealed) ? state.revealed : Object.values(state.revealed || {});
+    memTurn = state.turn || 'X';
+    memScores = state.scores || { X: 0, O: 0 };
+    memMoves = state.moves || 0;
+    memPending = !!state.pending;
+
+    memRender();
+    memUpdateStatusText();
+    memUpdateScoreboard();
+}
+
+function memFlip(id) {
+    if (!db || memPending || memMatchCount() === 8) return;
+    const mySymbol = memMySymbol();
+    if (!mySymbol || mySymbol !== memTurn) return; // not your turn, not a player
+    const card = memCards[id];
+    if (!card || card.matched || memRevealed.includes(id)) return;
+
+    const revealed = [...memRevealed, id];
+    const nextTurn = mySymbol === 'X' ? 'O' : 'X';
+
+    if (revealed.length < 2) {
+        // First flip of the turn: reveal it, then hand the turn to your
+        // partner so they're the one trying to find the match.
+        set(ref(db, 'memoryGame'), {
+            cards: memCards, revealed, turn: nextTurn,
+            scores: memScores, moves: memMoves, pending: false
+        });
+        return;
+    }
+
+    // Second flip: resolve the pair. Whoever completes the match earns the point.
+    const [a, b] = revealed;
+    const isMatch = memCards[a].emoji === memCards[b].emoji;
+    const moves = memMoves + 1;
+
+    if (isMatch) {
+        const cards = memCards.map(c => (c.id === a || c.id === b) ? { ...c, matched: true } : c);
+        const scores = { ...memScores, [mySymbol]: (memScores[mySymbol] || 0) + 1 };
+        set(ref(db, 'memoryGame'), {
+            cards, revealed: [], turn: nextTurn, scores, moves, pending: false
+        });
     } else {
+        // Briefly show the mismatched pair before flipping back. Only the
+        // player who just moved schedules this timeout, so both clients
+        // never race to write the follow-up state.
+        set(ref(db, 'memoryGame'), {
+            cards: memCards, revealed, turn: nextTurn,
+            scores: memScores, moves, pending: true
+        });
         setTimeout(() => {
-            memCards[a].flipped = memCards[b].flipped = false;
-            memFlipped = []; memLocked = false;
-            memRender();
+            set(ref(db, 'memoryGame'), {
+                cards: memCards, revealed: [], turn: nextTurn,
+                scores: memScores, moves, pending: false
+            });
         }, 900);
     }
 }
 
-document.getElementById('mem-reset')?.addEventListener('click', memInit);
-memInit();
+// Either partner can start a fresh round — scores carry over, only the board,
+// moves and turn reset. Who flips first is randomized, not fixed.
+function memReset() {
+    if (!db) return;
+    set(ref(db, 'memoryGame'), {
+        cards: memNewDeck(), revealed: [], turn: Math.random() < 0.5 ? 'X' : 'O',
+        scores: memScores, moves: 0, pending: false
+    });
+}
+
+function initMemorySync() {
+    if (!db) return;
+    onValue(ref(db, 'memoryGame'), (snap) => {
+        const state = snap.val();
+        if (!state) {
+            // First-ever load for this couple: one client seeds the shared
+            // starting state so there's something for both to sync against.
+            if (currentUser === 'Arnold') {
+                set(ref(db, 'memoryGame'), {
+                    cards: memNewDeck(), revealed: [], turn: Math.random() < 0.5 ? 'X' : 'O',
+                    scores: { X: 0, O: 0 }, moves: 0, pending: false
+                });
+            }
+            return;
+        }
+        memApplyState(state);
+    });
+}
+
+document.getElementById('mem-reset')?.addEventListener('click', memReset);
+memRender();
 
 // ── Slide Puzzle ───────────────────────────────────────────────────────────
 let puzzleTiles = [], puzzleMoves = 0, puzzleWon = false;

@@ -1538,6 +1538,11 @@ header {
     perspective: 600px;
 }
 
+.mem-board.waiting .mem-card:not(.flipped):not(.matched) {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 .mem-card-inner {
     width: 100%;
     height: 100%;
