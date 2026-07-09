@@ -36,6 +36,54 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _openSettings() async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Settings'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'refresh'),
+            child: const Row(
+              children: [
+                Icon(Icons.refresh, color: _accentColor),
+                SizedBox(width: 12),
+                Text('Refresh (clear cache & reload)'),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'change-owner'),
+            child: const Row(
+              children: [
+                Icon(Icons.swap_horiz, color: _accentColor),
+                SizedBox(width: 12),
+                Text('Change device owner'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (action == 'refresh') {
+      await _refreshWebView();
+    } else if (action == 'change-owner') {
+      await _confirmChangeOwner();
+    }
+  }
+
+  // Stale cached content (old script.js / old HTML) can hide new features and
+  // real-time updates — e.g. a pending SOS alert not showing until the app's
+  // cache is cleared. This gives a one-tap way to fix that without needing to
+  // clear the app's cache from Android system settings.
+  Future<void> _refreshWebView() async {
+    setState(() => _isLoading = true);
+    await _controller.clearCache();
+    await _controller.clearLocalStorage();
+    await _controller.reload();
+  }
+
+  Future<void> _confirmChangeOwner() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

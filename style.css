@@ -259,6 +259,16 @@ body {
     margin-top: 0.6rem;
 }
 
+.partner-mood-message {
+    font-size: 0.85rem;
+    font-style: italic;
+    color: #555;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 10px;
+    padding: 0.6rem 0.8rem;
+    margin: 0.3rem 0 0.2rem;
+}
+
 .my-mood-sent-alert {
     animation: none;
     opacity: 0.8;
@@ -1759,54 +1769,6 @@ header {
     cursor: default;
 }
 
-/* Connect Four */
-.c4-board {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 6px;
-    max-width: 322px;
-    margin: 0 auto;
-    background: rgba(21, 101, 192, 0.15);
-    padding: 8px;
-    border-radius: 12px;
-}
-
-.c4-cell {
-    aspect-ratio: 1;
-    background: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    cursor: pointer;
-    border: none;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.08);
-    transition: all 0.15s ease;
-    user-select: none;
-}
-
-.c4-cell:hover:not(.taken) {
-    transform: scale(1.08);
-    box-shadow: 0 5px 14px rgba(255, 64, 129, 0.25);
-}
-
-.c4-cell.taken { cursor: default; }
-
-.c4-board.waiting .c4-cell:not(.taken) {
-    cursor: not-allowed;
-    opacity: 0.55;
-}
-.c4-board.waiting .c4-cell:hover:not(.taken) {
-    transform: none;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.08);
-}
-
-.c4-cell.win {
-    animation: winPop 0.4s ease forwards;
-    box-shadow: 0 0 0 3px var(--accent-color);
-}
-
 /* Rock Paper Scissors */
 .rps-choices {
     display: flex;
@@ -1844,60 +1806,42 @@ header {
     margin-bottom: 0.5rem;
 }
 
-/* Dots & Boxes */
-.dab-board {
+/* Puzzle Together (cooperative jigsaw) */
+.jp-board {
     display: grid;
-    grid-template-columns: 14px 48px 14px 48px 14px;
-    grid-template-rows: 14px 48px 14px 48px 14px;
-    width: 138px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    max-width: 280px;
     margin: 0 auto;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
 }
 
-.dab-dot {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--accent-color);
-    justify-self: center;
-    align-self: center;
-}
-
-.dab-line {
+.jp-tile {
+    aspect-ratio: 1;
     border: none;
-    background: rgba(255, 64, 129, 0.18);
-    border-radius: 4px;
-    cursor: pointer;
     padding: 0;
-    transition: background 0.15s ease;
+    cursor: pointer;
+    background-repeat: no-repeat;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.dab-line:hover:not(.claimed) { background: rgba(255, 64, 129, 0.4); }
-.dab-line.claimed { background: var(--accent-color); cursor: default; }
-.dab-line.h { width: 100%; height: 8px; align-self: center; }
-.dab-line.v { height: 100%; width: 8px; justify-self: center; }
-
-.dab-board.waiting .dab-line:not(.claimed) { cursor: not-allowed; }
-
-.dab-box {
-    width: 100%;
-    height: 100%;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    font-weight: 700;
+.jp-tile:hover {
+    transform: scale(1.03);
+    z-index: 1;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
 
-.dab-box.owner-X { background: rgba(255, 64, 129, 0.25); color: var(--accent-color); }
-.dab-box.owner-O { background: rgba(103, 58, 183, 0.2); color: #673ab7; }
+.jp-tile.selected { box-shadow: inset 0 0 0 3px var(--accent-color); }
+
+.jp-tile.solved { cursor: default; }
+.jp-tile.solved:hover { transform: none; box-shadow: none; }
 
 @media (max-width: 400px) {
     .mem-board { max-width: 240px; gap: 6px; }
     .puzzle-board { max-width: 210px; gap: 5px; }
     .ttt-board { max-width: 195px; gap: 6px; }
     .ttt-cell { font-size: 1.6rem; }
-    .c4-board { max-width: 280px; gap: 5px; }
-    .c4-cell { font-size: 1.25rem; }
-    .dab-board { grid-template-columns: 12px 40px 12px 40px 12px; grid-template-rows: 12px 40px 12px 40px 12px; width: 116px; }
+    .jp-board { max-width: 220px; }
 }

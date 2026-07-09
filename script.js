@@ -89,7 +89,7 @@ function updateMyMood(mood, isCustom = false, customText = "") {
     if (!data) return;
 
     if (db && currentUser) {
-        const moodObj = { mood: isCustom ? customText : mood, moodClass: data.class, timestamp: Date.now(), acknowledged: false };
+        const moodObj = { mood: isCustom ? customText : mood, moodClass: data.class, message: data.message, timestamp: Date.now(), acknowledged: false };
         set(ref(db, 'moods/' + currentUser.toLowerCase()), moodObj);
         push(ref(db, 'moodHistory/' + currentUser.toLowerCase()), moodObj);
     }
@@ -214,9 +214,8 @@ function showApp(userName) {
     loadMysteryBox();
     initTicTacToeSync();
     initMemorySync();
-    initConnectFourSync();
     initRpsSync();
-    initDotsSync();
+    initJigsawSync();
 
     const chatLabel = document.getElementById('chat-user-label');
     if (chatLabel) chatLabel.textContent = `Logged in as: ${currentUser}`;
@@ -345,10 +344,14 @@ function setupSync() {
         const alertEl = document.getElementById('partner-mood-alert');
         const textEl = document.getElementById('partner-mood-text');
         const nameEl = document.getElementById('partner-name-label');
+        const messageEl2 = document.getElementById('partner-mood-message');
         if (alertEl && textEl) {
             if (pd && !pd.acknowledged) {
                 if (nameEl) nameEl.textContent = partnerName;
                 textEl.textContent = pd.mood;
+                // Same message card the partner saw on their own screen when
+                // they picked this mood — so you see exactly what they saw.
+                if (messageEl2) messageEl2.textContent = pd.message || '';
                 alertEl.classList.remove('hidden');
             } else {
                 alertEl.classList.add('hidden');
@@ -1803,153 +1806,6 @@ function puzzleRender() {
 document.getElementById('puzzle-reset')?.addEventListener('click', puzzleInit);
 puzzleInit();
 
-// ── Connect Four (synced live across both devices via Firebase) ────────────
-const C4_COLS = 7, C4_ROWS = 6;
-let c4Board = Array(C4_COLS * C4_ROWS).fill("");
-let c4Current = 'X';
-let c4Result = "";
-let c4Scores = { X: 0, O: 0, tie: 0 };
-
-function c4Name(sym) { return sym === 'X' ? 'Arnold' : 'Varaidzo'; }
-function c4RandomStart() { return Math.random() < 0.5 ? 'X' : 'O'; }
-
-function c4MySymbol() {
-    if (currentUser === 'Arnold') return 'X';
-    if (currentUser === 'Varaidzo') return 'O';
-    return null;
-}
-
-// Scans every cell as a potential start of a 4-in-a-row in all 4 directions
-// and returns the first winning line found, along with its symbol and cells
-// (used both to detect a win and to highlight it).
-function c4ComputeWinner(board) {
-    const at = (r, c) => (r < 0 || r >= C4_ROWS || c < 0 || c >= C4_COLS) ? null : (board[r * C4_COLS + c] || null);
-    const dirs = [[0, 1], [1, 0], [1, 1], [1, -1]];
-    for (let r = 0; r < C4_ROWS; r++) {
-        for (let c = 0; c < C4_COLS; c++) {
-            const sym = at(r, c);
-            if (!sym) continue;
-            for (const [dr, dc] of dirs) {
-                const cells = [[r, c]];
-                for (let k = 1; k < 4; k++) {
-                    const rr = r + dr * k, cc = c + dc * k;
-                    if (at(rr, cc) === sym) cells.push([rr, cc]); else break;
-                }
-                if (cells.length >= 4) return { winner: sym, cells };
-            }
-        }
-    }
-    return null;
-}
-
-function c4Render() {
-    const boardEl = document.getElementById('c4-board');
-    if (!boardEl) return;
-    const mySymbol = c4MySymbol();
-    const myTurn = !c4Result && mySymbol === c4Current;
-    boardEl.classList.toggle('waiting', !myTurn);
-
-    const winInfo = c4Result && c4Result !== 'tie' ? c4ComputeWinner(c4Board) : null;
-    const winSet = new Set((winInfo?.cells || []).map(([r, c]) => r * C4_COLS + c));
-
-    boardEl.innerHTML = '';
-    c4Board.forEach((val, i) => {
-        const cell = document.createElement('button');
-        cell.className = 'c4-cell' + (val ? ' taken' : '') + (winSet.has(i) ? ' win' : '');
-        cell.textContent = val === 'X' ? '🔴' : val === 'O' ? '🟡' : '';
-        cell.addEventListener('click', () => c4Move(i % C4_COLS));
-        boardEl.appendChild(cell);
-    });
-}
-
-function c4UpdateStatusText() {
-    const statusEl = document.getElementById('c4-status');
-    if (!statusEl) return;
-    if (c4Result === 'tie') {
-        statusEl.textContent = "It's a tie! 🤝";
-    } else if (c4Result) {
-        statusEl.textContent = `${c4Name(c4Result)} wins! 🎉`;
-    } else {
-        const mySymbol = c4MySymbol();
-        const mark = c4Current === 'X' ? '🔴' : '🟡';
-        statusEl.textContent = mySymbol === c4Current ? `Your turn (${mark})` : `Waiting for ${c4Name(c4Current)}'s move (${mark})...`;
-    }
-}
-
-function c4UpdateScoreboard() {
-    const scoreArnold = document.getElementById('c4-score-arnold');
-    const scoreVaraidzo = document.getElementById('c4-score-varaidzo');
-    const scoreTie = document.getElementById('c4-score-tie');
-    if (scoreArnold) scoreArnold.textContent = c4Scores.X || 0;
-    if (scoreVaraidzo) scoreVaraidzo.textContent = c4Scores.O || 0;
-    if (scoreTie) scoreTie.textContent = c4Scores.tie || 0;
-}
-
-// Applies a snapshot received from Firebase — this is the ONLY place local
-// Connect Four state changes, so both devices always render the same board.
-function c4ApplyState(state) {
-    const board = Array.isArray(state.board) ? state.board : Object.values(state.board || {});
-    c4Board = Array.from({ length: C4_COLS * C4_ROWS }, (_, i) => board[i] || "");
-    c4Current = state.current || 'X';
-    c4Result = state.winner || "";
-    c4Scores = state.scores || { X: 0, O: 0, tie: 0 };
-
-    c4Render();
-    c4UpdateStatusText();
-    c4UpdateScoreboard();
-}
-
-function c4Move(col) {
-    if (!db || c4Result) return;
-    const mySymbol = c4MySymbol();
-    if (!mySymbol || mySymbol !== c4Current) return; // not your turn, not a player
-
-    let targetRow = -1;
-    for (let r = C4_ROWS - 1; r >= 0; r--) {
-        if (!c4Board[r * C4_COLS + col]) { targetRow = r; break; }
-    }
-    if (targetRow === -1) return; // column full
-
-    const board = [...c4Board];
-    board[targetRow * C4_COLS + col] = mySymbol;
-    const winInfo = c4ComputeWinner(board);
-    const isTie = !winInfo && board.every(Boolean);
-    const scores = { ...c4Scores };
-    if (winInfo) scores[winInfo.winner] = (scores[winInfo.winner] || 0) + 1;
-    if (isTie) scores.tie = (scores.tie || 0) + 1;
-
-    set(ref(db, 'connectFour'), {
-        board,
-        current: mySymbol === 'X' ? 'O' : 'X',
-        winner: winInfo ? winInfo.winner : (isTie ? 'tie' : ""),
-        scores
-    });
-}
-
-// Either partner can start a fresh round — scores carry over, only the board
-// clears. Who moves first is randomized each time, not fixed to Arnold.
-function c4Reset() {
-    if (!db) return;
-    set(ref(db, 'connectFour'), { board: Array(C4_COLS * C4_ROWS).fill(""), current: c4RandomStart(), winner: "", scores: c4Scores });
-}
-
-function initConnectFourSync() {
-    if (!db) return;
-    onValue(ref(db, 'connectFour'), (snap) => {
-        const state = snap.val();
-        if (!state) {
-            if (currentUser === 'Arnold') {
-                set(ref(db, 'connectFour'), { board: Array(C4_COLS * C4_ROWS).fill(""), current: c4RandomStart(), winner: "", scores: { X: 0, O: 0, tie: 0 } });
-            }
-            return;
-        }
-        c4ApplyState(state);
-    });
-}
-
-document.getElementById('c4-reset')?.addEventListener('click', c4Reset);
-c4Render();
-
 // ── Rock Paper Scissors (synced live, simultaneous picks each round) ───────
 const RPS_BEATS = { rock: 'scissors', paper: 'rock', scissors: 'paper' };
 const RPS_EMOJI = { rock: '✊', paper: '✋', scissors: '✌️' };
@@ -2063,156 +1919,119 @@ document.querySelectorAll('.rps-choice-btn').forEach(btn => {
 document.getElementById('rps-reset')?.addEventListener('click', rpsReset);
 rpsRender();
 
-// ── Dots & Boxes (synced live, 3×3 dot grid = 4 boxes) ──────────────────────
-// The board is flattened into 12 line slots (6 horizontal H(r,c)=r*2+c for
-// r 0-2,c 0-1, then 6 vertical V(r,c)=6+r*3+c for r 0-1,c 0-2) and 4 box
-// slots (box(r,c)=r*2+c for r,c 0-1). Completing a box grants another turn.
-let dabLines = Array(12).fill(false);
-let dabBoxes = Array(4).fill("");
-let dabCurrent = 'X';
-let dabScores = { X: 0, O: 0 };
+// ── Puzzle Together (cooperative jigsaw, synced live — no turns, either
+// partner can swap any two pieces to help finish the picture) ──────────────
+const JP_SIZE = 4; // 4×4 grid = 16 pieces
+const JP_IMAGE = "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80";
 
-function dabName(sym) { return sym === 'X' ? 'Arnold' : 'Varaidzo'; }
-function dabRandomStart() { return Math.random() < 0.5 ? 'X' : 'O'; }
+let jpOrder = [...Array(JP_SIZE * JP_SIZE).keys()]; // order[slot] = home piece index currently sitting there
+let jpFirstPick = null;
+let jpSolved = false;
+let jpCelebrated = false;
 
-function dabMySymbol() {
-    if (currentUser === 'Arnold') return 'X';
-    if (currentUser === 'Varaidzo') return 'O';
-    return null;
-}
+function jpCanPlay() { return currentUser === 'Arnold' || currentUser === 'Varaidzo'; }
+function jpIsSolved(order) { return order.every((v, i) => v === i); }
 
-function dabBoxEdges(box) {
-    const r = Math.floor(box / 2), c = box % 2;
-    return [r * 2 + c, (r + 1) * 2 + c, 6 + r * 3 + c, 6 + r * 3 + (c + 1)]; // top, bottom, left, right
-}
-
-function dabIsOver() { return dabLines.every(Boolean); }
-
-function dabRender() {
-    const boardEl = document.getElementById('dab-board');
+function jpRender() {
+    const boardEl = document.getElementById('jp-board');
     if (!boardEl) return;
-    const mySymbol = dabMySymbol();
-    const myTurn = !dabIsOver() && mySymbol === dabCurrent;
-    boardEl.classList.toggle('waiting', !myTurn);
 
     boardEl.innerHTML = '';
-    for (let gridRow = 1; gridRow <= 5; gridRow++) {
-        for (let gridCol = 1; gridCol <= 5; gridCol++) {
-            const rowOdd = gridRow % 2 === 1, colOdd = gridCol % 2 === 1;
-            let el;
-            if (rowOdd && colOdd) {
-                el = document.createElement('div');
-                el.className = 'dab-dot';
-            } else if (rowOdd !== colOdd) {
-                el = document.createElement('button');
-                if (rowOdd) {
-                    const r = (gridRow - 1) / 2, c = (gridCol - 2) / 2;
-                    const idx = r * 2 + c;
-                    el.className = 'dab-line h' + (dabLines[idx] ? ' claimed' : '');
-                    if (!dabLines[idx]) el.addEventListener('click', () => dabMove(idx));
-                } else {
-                    const r = (gridRow - 2) / 2, c = (gridCol - 1) / 2;
-                    const idx = 6 + r * 3 + c;
-                    el.className = 'dab-line v' + (dabLines[idx] ? ' claimed' : '');
-                    if (!dabLines[idx]) el.addEventListener('click', () => dabMove(idx));
-                }
-            } else {
-                el = document.createElement('div');
-                const r = (gridRow - 2) / 2, c = (gridCol - 2) / 2;
-                const owner = dabBoxes[r * 2 + c];
-                el.className = 'dab-box' + (owner ? ' owner-' + owner : '');
-                el.textContent = owner ? (owner === 'X' ? '❤️' : '💜') : '';
-            }
-            el.style.gridRow = gridRow;
-            el.style.gridColumn = gridCol;
-            boardEl.appendChild(el);
-        }
-    }
+    const pct = 100 / (JP_SIZE - 1);
+    jpOrder.forEach((pieceIdx, slotIdx) => {
+        const tile = document.createElement('button');
+        tile.className = 'jp-tile' + (jpFirstPick === slotIdx ? ' selected' : '') + (jpSolved ? ' solved' : '');
+        const row = Math.floor(pieceIdx / JP_SIZE), col = pieceIdx % JP_SIZE;
+        tile.style.backgroundImage = `url('${JP_IMAGE}')`;
+        tile.style.backgroundSize = `${JP_SIZE * 100}% ${JP_SIZE * 100}%`;
+        tile.style.backgroundPosition = `${col * pct}% ${row * pct}%`;
+        tile.addEventListener('click', () => jpTileClick(slotIdx));
+        boardEl.appendChild(tile);
+    });
 }
 
-function dabUpdateStatusText() {
-    const statusEl = document.getElementById('dab-status');
+function jpUpdateStatusText() {
+    const statusEl = document.getElementById('jp-status');
     if (!statusEl) return;
-    if (dabIsOver()) {
-        const x = dabBoxes.filter(b => b === 'X').length;
-        const o = dabBoxes.filter(b => b === 'O').length;
-        statusEl.textContent = x === o ? "It's a tie! 🤝" : `${x > o ? 'Arnold' : 'Varaidzo'} wins! 🎉`;
-    } else {
-        const mySymbol = dabMySymbol();
-        statusEl.textContent = mySymbol === dabCurrent ? "Your turn — claim a line!" : `Waiting for ${dabName(dabCurrent)}...`;
-    }
-}
-
-function dabUpdateScoreboard() {
-    const scoreArnold = document.getElementById('dab-score-arnold');
-    const scoreVaraidzo = document.getElementById('dab-score-varaidzo');
-    if (scoreArnold) scoreArnold.textContent = dabScores.X || 0;
-    if (scoreVaraidzo) scoreVaraidzo.textContent = dabScores.O || 0;
+    statusEl.textContent = jpSolved
+        ? "You solved it together! 🎉🖼️"
+        : "Work together — tap two pieces to swap them! 🧩";
 }
 
 // Applies a snapshot received from Firebase — this is the ONLY place local
-// Dots & Boxes state changes, so both devices always render the same board.
-function dabApplyState(state) {
-    const lines = Array.isArray(state.lines) ? state.lines : Object.values(state.lines || {});
-    dabLines = Array.from({ length: 12 }, (_, i) => !!lines[i]);
-    const boxes = Array.isArray(state.boxes) ? state.boxes : Object.values(state.boxes || {});
-    dabBoxes = Array.from({ length: 4 }, (_, i) => boxes[i] || "");
-    dabCurrent = state.current || 'X';
-    dabScores = state.scores || { X: 0, O: 0 };
+// jigsaw state changes, so both devices always see the same board and the
+// same shared selection (so you can literally see which piece your partner
+// just picked, mid-swap).
+function jpApplyState(state) {
+    const order = Array.isArray(state.order) ? state.order : Object.values(state.order || {});
+    jpOrder = Array.from({ length: JP_SIZE * JP_SIZE }, (_, i) => (order[i] ?? i));
+    jpFirstPick = state.firstPick ?? null;
+    jpSolved = jpIsSolved(jpOrder);
 
-    dabRender();
-    dabUpdateStatusText();
-    dabUpdateScoreboard();
+    jpRender();
+    jpUpdateStatusText();
+
+    if (jpSolved && !jpCelebrated) {
+        jpCelebrated = true;
+        createHearts(20, ['🧩', '💖', '✨', '💫']);
+    } else if (!jpSolved) {
+        jpCelebrated = false;
+    }
 }
 
-function dabMove(lineIdx) {
-    if (!db || dabIsOver() || dabLines[lineIdx]) return;
-    const mySymbol = dabMySymbol();
-    if (!mySymbol || mySymbol !== dabCurrent) return; // not your turn, not a player
+// No turns — either partner can pick the first piece, and either partner
+// (same one or the other) can pick the second to complete the swap.
+function jpTileClick(slotIdx) {
+    if (!db || !jpCanPlay() || jpSolved) return;
 
-    const lines = [...dabLines];
-    lines[lineIdx] = true;
-    const boxes = [...dabBoxes];
-    let claimedAny = false;
-
-    for (let box = 0; box < 4; box++) {
-        if (boxes[box]) continue;
-        if (dabBoxEdges(box).every(e => lines[e])) {
-            boxes[box] = mySymbol;
-            claimedAny = true;
-        }
+    if (jpFirstPick === null) {
+        set(ref(db, 'jigsawPuzzle/firstPick'), slotIdx);
+        return;
+    }
+    if (jpFirstPick === slotIdx) {
+        set(ref(db, 'jigsawPuzzle/firstPick'), null); // tap the same piece again to deselect
+        return;
     }
 
-    set(ref(db, 'dotsAndBoxes'), {
-        lines,
-        boxes,
-        current: claimedAny ? mySymbol : (mySymbol === 'X' ? 'O' : 'X'), // completing a box earns another turn
-        scores: { X: boxes.filter(b => b === 'X').length, O: boxes.filter(b => b === 'O').length }
-    });
+    const order = [...jpOrder];
+    [order[jpFirstPick], order[slotIdx]] = [order[slotIdx], order[jpFirstPick]];
+    set(ref(db, 'jigsawPuzzle'), { order, firstPick: null });
 }
 
-// Either partner can start a fresh round. Who moves first is randomized.
-function dabReset() {
-    if (!db) return;
-    set(ref(db, 'dotsAndBoxes'), { lines: Array(12).fill(false), boxes: Array(4).fill(""), current: dabRandomStart(), scores: { X: 0, O: 0 } });
+// Arbitrary swaps have no parity constraint (unlike a sliding puzzle), so
+// any shuffle is solvable — just reshuffle until it isn't already solved.
+function jpShuffledOrder() {
+    const arr = [...Array(JP_SIZE * JP_SIZE).keys()];
+    do {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+    } while (jpIsSolved(arr));
+    return arr;
 }
 
-function initDotsSync() {
+function jpReset() {
     if (!db) return;
-    onValue(ref(db, 'dotsAndBoxes'), (snap) => {
+    set(ref(db, 'jigsawPuzzle'), { order: jpShuffledOrder(), firstPick: null });
+}
+
+function initJigsawSync() {
+    if (!db) return;
+    onValue(ref(db, 'jigsawPuzzle'), (snap) => {
         const state = snap.val();
         if (!state) {
             if (currentUser === 'Arnold') {
-                set(ref(db, 'dotsAndBoxes'), { lines: Array(12).fill(false), boxes: Array(4).fill(""), current: dabRandomStart(), scores: { X: 0, O: 0 } });
+                set(ref(db, 'jigsawPuzzle'), { order: jpShuffledOrder(), firstPick: null });
             }
             return;
         }
-        dabApplyState(state);
+        jpApplyState(state);
     });
 }
 
-document.getElementById('dab-reset')?.addEventListener('click', dabReset);
-dabRender();
+document.getElementById('jp-reset')?.addEventListener('click', jpReset);
+jpRender();
 
 window.onload = () => {
     checkAuth();

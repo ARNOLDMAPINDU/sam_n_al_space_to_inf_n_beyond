@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <script>if(localStorage.getItem('sv')!=='11'){localStorage.setItem('sv','11');location.reload(true);}</script>
+    <script>if(localStorage.getItem('sv')!=='12'){localStorage.setItem('sv','12');location.reload(true);}</script>
     <title>Varaidzo & Arnold: Our Heartbeat</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
@@ -100,6 +100,7 @@
             <div id="response-box" class="glass-box">
                 <div id="partner-mood-alert" class="partner-mood-alert hidden">
                     <p><span id="partner-name-label">Partner</span> is feeling <span id="partner-mood-text">...</span> ❤️</p>
+                    <p id="partner-mood-message" class="partner-mood-message"></p>
                     <button id="mood-ack-btn" class="mini-btn">Got it 💕</button>
                 </div>
                 <div id="my-mood-sent-alert" class="partner-mood-alert my-mood-sent-alert hidden">
@@ -223,9 +224,8 @@
                     <button class="game-tab active" data-game="tictactoe">❌⭕ Tic Tac Toe</button>
                     <button class="game-tab" data-game="memory">🃏 Memory Cards</button>
                     <button class="game-tab" data-game="puzzle">🧩 Slide Puzzle</button>
-                    <button class="game-tab" data-game="connect4">🔴🟡 Connect Four</button>
                     <button class="game-tab" data-game="rps">✂️ Rock Paper Scissors</button>
-                    <button class="game-tab" data-game="dots">🔲 Dots &amp; Boxes</button>
+                    <button class="game-tab" data-game="jigsaw">🖼️ Puzzle Together</button>
                 </div>
 
                 <!-- Tic Tac Toe -->
@@ -265,18 +265,6 @@
                     </div>
                 </div>
 
-                <!-- Connect Four -->
-                <div id="game-connect4" class="game-panel hidden">
-                    <p id="c4-status" class="game-status">Arnold's turn (🔴)</p>
-                    <div id="c4-board" class="c4-board"></div>
-                    <button id="c4-reset" class="mini-btn ttt-reset-btn">New Game 🔄</button>
-                    <div class="ttt-score">
-                        <span>Arnold 🔴 <strong id="c4-score-arnold">0</strong></span>
-                        <span>Ties <strong id="c4-score-tie">0</strong></span>
-                        <span>Varaidzo 🟡 <strong id="c4-score-varaidzo">0</strong></span>
-                    </div>
-                </div>
-
                 <!-- Rock Paper Scissors -->
                 <div id="game-rps" class="game-panel hidden">
                     <p id="rps-status" class="game-status">Pick your move! ✊✋✌️</p>
@@ -294,15 +282,12 @@
                     </div>
                 </div>
 
-                <!-- Dots & Boxes -->
-                <div id="game-dots" class="game-panel hidden">
-                    <p id="dab-status" class="game-status">Arnold's turn</p>
-                    <div id="dab-board" class="dab-board"></div>
-                    <button id="dab-reset" class="mini-btn ttt-reset-btn">New Game 🔄</button>
-                    <div class="ttt-score">
-                        <span>Arnold <strong id="dab-score-arnold">0</strong></span>
-                        <span>Varaidzo <strong id="dab-score-varaidzo">0</strong></span>
-                    </div>
+                <!-- Puzzle Together: cooperative jigsaw, no turns — swap any two
+                     pieces to help each other complete the picture. -->
+                <div id="game-jigsaw" class="game-panel hidden">
+                    <p id="jp-status" class="game-status">Work together — tap two pieces to swap them! 🧩</p>
+                    <div id="jp-board" class="jp-board"></div>
+                    <button id="jp-reset" class="mini-btn ttt-reset-btn">Shuffle 🔀</button>
                 </div>
 
                 <!-- Game Chat -->
@@ -416,6 +401,6 @@
     </div>
 
     <!-- Modern Firebase SDK -->
-    <script type="module" src="script.js?v=11"></script>
+    <script type="module" src="script.js?v=12"></script>
 </body>
 </html>
