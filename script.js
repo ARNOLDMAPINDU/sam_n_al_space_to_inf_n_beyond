@@ -20,6 +20,11 @@ const storage = getStorage(app);
 
 // ── Mood data ──────────────────────────────────────────────────────────────
 const moodData = {
+    normal: {
+        message: "Just an ordinary day, huh? I love your calm, steady heart just as much as any big moment, Samantha. 🙂💕",
+        image: "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=800&q=80",
+        class: "mood-normal"
+    },
     happy: {
         message: "Seeing you happy makes my whole world light up, Samantha! Keep that beautiful smile on your face. ❤️",
         image: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80",
@@ -209,6 +214,9 @@ function showApp(userName) {
     loadMysteryBox();
     initTicTacToeSync();
     initMemorySync();
+    initConnectFourSync();
+    initRpsSync();
+    initDotsSync();
 
     const chatLabel = document.getElementById('chat-user-label');
     if (chatLabel) chatLabel.textContent = `Logged in as: ${currentUser}`;
@@ -371,6 +379,10 @@ function setupSync() {
 
     // 4b. Game Chat — its own separate conversation, kept apart from the main chat.
     onChildAdded(ref(db, 'gameChat'), (snap) => displayGameChatMessage(snap.val()), (err) => console.error("Game chat sync error:", err));
+
+    // 4c. Feeling Chat — its own standalone conversation, separate from both
+    // the main chat and the Game Chat.
+    onChildAdded(ref(db, 'feelingChat'), (snap) => displayFeelingChatMessage(snap.val()), (err) => console.error("Feeling chat sync error:", err));
 
     // 5. Quests
     onValue(ref(db, 'quests'), (snap) => {
@@ -732,6 +744,36 @@ function displayGameChatMessage(msg) {
     container.scrollTop = container.scrollHeight;
 }
 
+// ── Feeling Chat (standalone conversation about how you're feeling, kept
+// apart from both the main chat and the Game Chat) ─────────────────────────
+function sendFeelingMessage() {
+    const inputEl = document.getElementById('feeling-chat-input');
+    const text = inputEl?.value.trim();
+    if (!text || !currentUser) return;
+
+    push(ref(db, 'feelingChat'), { sender: currentUser, text, sentAt: Date.now() })
+        .then(() => { if (inputEl) inputEl.value = ''; })
+        .catch(err => console.error("Feeling chat push error:", err));
+}
+
+function displayFeelingChatMessage(msg) {
+    const container = document.getElementById('feeling-chat-messages');
+    if (!container) return;
+
+    const msgId = msg.sentAt || (msg.sender + msg.text);
+    if (document.getElementById('feeling-msg-' + msgId)) return;
+
+    const msgDiv = document.createElement('div');
+    msgDiv.id = 'feeling-msg-' + msgId;
+    msgDiv.classList.add('message', msg.sender === "Arnold" ? 'arnold' : 'varaidzo');
+
+    const timeStr = formatMessageTime(msg.sentAt) || '';
+    msgDiv.innerHTML = `<span class="sender-name">${msg.sender} • ${timeStr}</span><p>${msg.text}</p>`;
+
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
+}
+
 function setReply(msg, msgId) {
     pendingReply = {
         id: msgId,
@@ -764,6 +806,8 @@ document.getElementById('send-btn')?.addEventListener('click', sendMessage);
 document.getElementById('chat-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 document.getElementById('game-chat-send-btn')?.addEventListener('click', sendGameMessage);
 document.getElementById('game-chat-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendGameMessage(); });
+document.getElementById('feeling-chat-send-btn')?.addEventListener('click', sendFeelingMessage);
+document.getElementById('feeling-chat-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendFeelingMessage(); });
 document.getElementById('reply-cancel-btn')?.addEventListener('click', cancelReply);
 
 // ── Media upload ───────────────────────────────────────────────────────────
@@ -1300,7 +1344,7 @@ function renderMoodHistory(history) {
 }
 
 function getMoodEmoji(mood) {
-    const map = { happy: "😊", missing: "💖", tired: "😴", hungry: "🍕", grumpy: "😖", bored: "🎬" };
+    const map = { normal: "🙂", happy: "😊", missing: "💖", tired: "😴", hungry: "🍕", grumpy: "😖", bored: "🎬" };
     return map[mood?.toLowerCase()] || "✨";
 }
 
@@ -1758,6 +1802,417 @@ function puzzleRender() {
 
 document.getElementById('puzzle-reset')?.addEventListener('click', puzzleInit);
 puzzleInit();
+
+// ── Connect Four (synced live across both devices via Firebase) ────────────
+const C4_COLS = 7, C4_ROWS = 6;
+let c4Board = Array(C4_COLS * C4_ROWS).fill("");
+let c4Current = 'X';
+let c4Result = "";
+let c4Scores = { X: 0, O: 0, tie: 0 };
+
+function c4Name(sym) { return sym === 'X' ? 'Arnold' : 'Varaidzo'; }
+function c4RandomStart() { return Math.random() < 0.5 ? 'X' : 'O'; }
+
+function c4MySymbol() {
+    if (currentUser === 'Arnold') return 'X';
+    if (currentUser === 'Varaidzo') return 'O';
+    return null;
+}
+
+// Scans every cell as a potential start of a 4-in-a-row in all 4 directions
+// and returns the first winning line found, along with its symbol and cells
+// (used both to detect a win and to highlight it).
+function c4ComputeWinner(board) {
+    const at = (r, c) => (r < 0 || r >= C4_ROWS || c < 0 || c >= C4_COLS) ? null : (board[r * C4_COLS + c] || null);
+    const dirs = [[0, 1], [1, 0], [1, 1], [1, -1]];
+    for (let r = 0; r < C4_ROWS; r++) {
+        for (let c = 0; c < C4_COLS; c++) {
+            const sym = at(r, c);
+            if (!sym) continue;
+            for (const [dr, dc] of dirs) {
+                const cells = [[r, c]];
+                for (let k = 1; k < 4; k++) {
+                    const rr = r + dr * k, cc = c + dc * k;
+                    if (at(rr, cc) === sym) cells.push([rr, cc]); else break;
+                }
+                if (cells.length >= 4) return { winner: sym, cells };
+            }
+        }
+    }
+    return null;
+}
+
+function c4Render() {
+    const boardEl = document.getElementById('c4-board');
+    if (!boardEl) return;
+    const mySymbol = c4MySymbol();
+    const myTurn = !c4Result && mySymbol === c4Current;
+    boardEl.classList.toggle('waiting', !myTurn);
+
+    const winInfo = c4Result && c4Result !== 'tie' ? c4ComputeWinner(c4Board) : null;
+    const winSet = new Set((winInfo?.cells || []).map(([r, c]) => r * C4_COLS + c));
+
+    boardEl.innerHTML = '';
+    c4Board.forEach((val, i) => {
+        const cell = document.createElement('button');
+        cell.className = 'c4-cell' + (val ? ' taken' : '') + (winSet.has(i) ? ' win' : '');
+        cell.textContent = val === 'X' ? '🔴' : val === 'O' ? '🟡' : '';
+        cell.addEventListener('click', () => c4Move(i % C4_COLS));
+        boardEl.appendChild(cell);
+    });
+}
+
+function c4UpdateStatusText() {
+    const statusEl = document.getElementById('c4-status');
+    if (!statusEl) return;
+    if (c4Result === 'tie') {
+        statusEl.textContent = "It's a tie! 🤝";
+    } else if (c4Result) {
+        statusEl.textContent = `${c4Name(c4Result)} wins! 🎉`;
+    } else {
+        const mySymbol = c4MySymbol();
+        const mark = c4Current === 'X' ? '🔴' : '🟡';
+        statusEl.textContent = mySymbol === c4Current ? `Your turn (${mark})` : `Waiting for ${c4Name(c4Current)}'s move (${mark})...`;
+    }
+}
+
+function c4UpdateScoreboard() {
+    const scoreArnold = document.getElementById('c4-score-arnold');
+    const scoreVaraidzo = document.getElementById('c4-score-varaidzo');
+    const scoreTie = document.getElementById('c4-score-tie');
+    if (scoreArnold) scoreArnold.textContent = c4Scores.X || 0;
+    if (scoreVaraidzo) scoreVaraidzo.textContent = c4Scores.O || 0;
+    if (scoreTie) scoreTie.textContent = c4Scores.tie || 0;
+}
+
+// Applies a snapshot received from Firebase — this is the ONLY place local
+// Connect Four state changes, so both devices always render the same board.
+function c4ApplyState(state) {
+    const board = Array.isArray(state.board) ? state.board : Object.values(state.board || {});
+    c4Board = Array.from({ length: C4_COLS * C4_ROWS }, (_, i) => board[i] || "");
+    c4Current = state.current || 'X';
+    c4Result = state.winner || "";
+    c4Scores = state.scores || { X: 0, O: 0, tie: 0 };
+
+    c4Render();
+    c4UpdateStatusText();
+    c4UpdateScoreboard();
+}
+
+function c4Move(col) {
+    if (!db || c4Result) return;
+    const mySymbol = c4MySymbol();
+    if (!mySymbol || mySymbol !== c4Current) return; // not your turn, not a player
+
+    let targetRow = -1;
+    for (let r = C4_ROWS - 1; r >= 0; r--) {
+        if (!c4Board[r * C4_COLS + col]) { targetRow = r; break; }
+    }
+    if (targetRow === -1) return; // column full
+
+    const board = [...c4Board];
+    board[targetRow * C4_COLS + col] = mySymbol;
+    const winInfo = c4ComputeWinner(board);
+    const isTie = !winInfo && board.every(Boolean);
+    const scores = { ...c4Scores };
+    if (winInfo) scores[winInfo.winner] = (scores[winInfo.winner] || 0) + 1;
+    if (isTie) scores.tie = (scores.tie || 0) + 1;
+
+    set(ref(db, 'connectFour'), {
+        board,
+        current: mySymbol === 'X' ? 'O' : 'X',
+        winner: winInfo ? winInfo.winner : (isTie ? 'tie' : ""),
+        scores
+    });
+}
+
+// Either partner can start a fresh round — scores carry over, only the board
+// clears. Who moves first is randomized each time, not fixed to Arnold.
+function c4Reset() {
+    if (!db) return;
+    set(ref(db, 'connectFour'), { board: Array(C4_COLS * C4_ROWS).fill(""), current: c4RandomStart(), winner: "", scores: c4Scores });
+}
+
+function initConnectFourSync() {
+    if (!db) return;
+    onValue(ref(db, 'connectFour'), (snap) => {
+        const state = snap.val();
+        if (!state) {
+            if (currentUser === 'Arnold') {
+                set(ref(db, 'connectFour'), { board: Array(C4_COLS * C4_ROWS).fill(""), current: c4RandomStart(), winner: "", scores: { X: 0, O: 0, tie: 0 } });
+            }
+            return;
+        }
+        c4ApplyState(state);
+    });
+}
+
+document.getElementById('c4-reset')?.addEventListener('click', c4Reset);
+c4Render();
+
+// ── Rock Paper Scissors (synced live, simultaneous picks each round) ───────
+const RPS_BEATS = { rock: 'scissors', paper: 'rock', scissors: 'paper' };
+const RPS_EMOJI = { rock: '✊', paper: '✋', scissors: '✌️' };
+
+let rpsPicks = { arnold: '', varaidzo: '' };
+let rpsScores = { arnold: 0, varaidzo: 0, tie: 0 };
+let rpsTallied = false;
+
+function rpsMyKey() {
+    if (currentUser === 'Arnold') return 'arnold';
+    if (currentUser === 'Varaidzo') return 'varaidzo';
+    return null;
+}
+
+function rpsWinner(arnoldPick, varaidzoPick) {
+    if (arnoldPick === varaidzoPick) return 'tie';
+    return RPS_BEATS[arnoldPick] === varaidzoPick ? 'arnold' : 'varaidzo';
+}
+
+function rpsRender() {
+    const myKey = rpsMyKey();
+    document.querySelectorAll('.rps-choice-btn').forEach(btn => {
+        btn.classList.toggle('picked', !!myKey && rpsPicks[myKey] === btn.dataset.choice);
+    });
+}
+
+function rpsUpdateStatusText() {
+    const statusEl = document.getElementById('rps-status');
+    const resultEl = document.getElementById('rps-result');
+    if (!statusEl || !resultEl) return;
+    const { arnold, varaidzo } = rpsPicks;
+
+    if (arnold && varaidzo) {
+        const winner = rpsWinner(arnold, varaidzo);
+        statusEl.textContent = "Round result:";
+        resultEl.textContent = winner === 'tie'
+            ? `${RPS_EMOJI[arnold]} vs ${RPS_EMOJI[varaidzo]} — it's a tie! 🤝`
+            : `${RPS_EMOJI[arnold]} vs ${RPS_EMOJI[varaidzo]} — ${winner === 'arnold' ? 'Arnold' : 'Varaidzo'} wins! 🎉`;
+    } else {
+        resultEl.textContent = '';
+        const myKey = rpsMyKey();
+        statusEl.textContent = (myKey && rpsPicks[myKey])
+            ? `Waiting for ${myKey === 'arnold' ? 'Varaidzo' : 'Arnold'} to pick...`
+            : "Pick your move! ✊✋✌️";
+    }
+}
+
+function rpsUpdateScoreboard() {
+    const scoreArnold = document.getElementById('rps-score-arnold');
+    const scoreVaraidzo = document.getElementById('rps-score-varaidzo');
+    const scoreTie = document.getElementById('rps-score-tie');
+    if (scoreArnold) scoreArnold.textContent = rpsScores.arnold || 0;
+    if (scoreVaraidzo) scoreVaraidzo.textContent = rpsScores.varaidzo || 0;
+    if (scoreTie) scoreTie.textContent = rpsScores.tie || 0;
+}
+
+// Applies a snapshot received from Firebase — this is the ONLY place local
+// RPS state changes, so both devices always render the same round.
+function rpsApplyState(state) {
+    rpsPicks = state.picks || { arnold: '', varaidzo: '' };
+    rpsScores = state.scores || { arnold: 0, varaidzo: 0, tie: 0 };
+    rpsTallied = !!state.tallied;
+
+    rpsRender();
+    rpsUpdateStatusText();
+    rpsUpdateScoreboard();
+
+    // Tally the round's score exactly once a round resolves — gated to one
+    // client (Arnold's) so two devices resolving the same round don't race
+    // and double-count it.
+    if (rpsPicks.arnold && rpsPicks.varaidzo && !rpsTallied && currentUser === 'Arnold') {
+        const winner = rpsWinner(rpsPicks.arnold, rpsPicks.varaidzo);
+        const scores = { ...rpsScores };
+        if (winner === 'tie') scores.tie = (scores.tie || 0) + 1;
+        else scores[winner] = (scores[winner] || 0) + 1;
+        set(ref(db, 'rps'), { picks: rpsPicks, scores, tallied: true });
+    }
+}
+
+function rpsPick(choice) {
+    if (!db) return;
+    const myKey = rpsMyKey();
+    if (!myKey || rpsPicks[myKey]) return; // not a player, or already picked this round
+    set(ref(db, 'rps/picks/' + myKey), choice);
+}
+
+// Either partner can start the next round — scores carry over, only the
+// picks reset.
+function rpsReset() {
+    if (!db) return;
+    set(ref(db, 'rps'), { picks: { arnold: '', varaidzo: '' }, scores: rpsScores, tallied: false });
+}
+
+function initRpsSync() {
+    if (!db) return;
+    onValue(ref(db, 'rps'), (snap) => {
+        const state = snap.val();
+        if (!state) {
+            if (currentUser === 'Arnold') {
+                set(ref(db, 'rps'), { picks: { arnold: '', varaidzo: '' }, scores: { arnold: 0, varaidzo: 0, tie: 0 }, tallied: false });
+            }
+            return;
+        }
+        rpsApplyState(state);
+    });
+}
+
+document.querySelectorAll('.rps-choice-btn').forEach(btn => {
+    btn.addEventListener('click', () => rpsPick(btn.dataset.choice));
+});
+document.getElementById('rps-reset')?.addEventListener('click', rpsReset);
+rpsRender();
+
+// ── Dots & Boxes (synced live, 3×3 dot grid = 4 boxes) ──────────────────────
+// The board is flattened into 12 line slots (6 horizontal H(r,c)=r*2+c for
+// r 0-2,c 0-1, then 6 vertical V(r,c)=6+r*3+c for r 0-1,c 0-2) and 4 box
+// slots (box(r,c)=r*2+c for r,c 0-1). Completing a box grants another turn.
+let dabLines = Array(12).fill(false);
+let dabBoxes = Array(4).fill("");
+let dabCurrent = 'X';
+let dabScores = { X: 0, O: 0 };
+
+function dabName(sym) { return sym === 'X' ? 'Arnold' : 'Varaidzo'; }
+function dabRandomStart() { return Math.random() < 0.5 ? 'X' : 'O'; }
+
+function dabMySymbol() {
+    if (currentUser === 'Arnold') return 'X';
+    if (currentUser === 'Varaidzo') return 'O';
+    return null;
+}
+
+function dabBoxEdges(box) {
+    const r = Math.floor(box / 2), c = box % 2;
+    return [r * 2 + c, (r + 1) * 2 + c, 6 + r * 3 + c, 6 + r * 3 + (c + 1)]; // top, bottom, left, right
+}
+
+function dabIsOver() { return dabLines.every(Boolean); }
+
+function dabRender() {
+    const boardEl = document.getElementById('dab-board');
+    if (!boardEl) return;
+    const mySymbol = dabMySymbol();
+    const myTurn = !dabIsOver() && mySymbol === dabCurrent;
+    boardEl.classList.toggle('waiting', !myTurn);
+
+    boardEl.innerHTML = '';
+    for (let gridRow = 1; gridRow <= 5; gridRow++) {
+        for (let gridCol = 1; gridCol <= 5; gridCol++) {
+            const rowOdd = gridRow % 2 === 1, colOdd = gridCol % 2 === 1;
+            let el;
+            if (rowOdd && colOdd) {
+                el = document.createElement('div');
+                el.className = 'dab-dot';
+            } else if (rowOdd !== colOdd) {
+                el = document.createElement('button');
+                if (rowOdd) {
+                    const r = (gridRow - 1) / 2, c = (gridCol - 2) / 2;
+                    const idx = r * 2 + c;
+                    el.className = 'dab-line h' + (dabLines[idx] ? ' claimed' : '');
+                    if (!dabLines[idx]) el.addEventListener('click', () => dabMove(idx));
+                } else {
+                    const r = (gridRow - 2) / 2, c = (gridCol - 1) / 2;
+                    const idx = 6 + r * 3 + c;
+                    el.className = 'dab-line v' + (dabLines[idx] ? ' claimed' : '');
+                    if (!dabLines[idx]) el.addEventListener('click', () => dabMove(idx));
+                }
+            } else {
+                el = document.createElement('div');
+                const r = (gridRow - 2) / 2, c = (gridCol - 2) / 2;
+                const owner = dabBoxes[r * 2 + c];
+                el.className = 'dab-box' + (owner ? ' owner-' + owner : '');
+                el.textContent = owner ? (owner === 'X' ? '❤️' : '💜') : '';
+            }
+            el.style.gridRow = gridRow;
+            el.style.gridColumn = gridCol;
+            boardEl.appendChild(el);
+        }
+    }
+}
+
+function dabUpdateStatusText() {
+    const statusEl = document.getElementById('dab-status');
+    if (!statusEl) return;
+    if (dabIsOver()) {
+        const x = dabBoxes.filter(b => b === 'X').length;
+        const o = dabBoxes.filter(b => b === 'O').length;
+        statusEl.textContent = x === o ? "It's a tie! 🤝" : `${x > o ? 'Arnold' : 'Varaidzo'} wins! 🎉`;
+    } else {
+        const mySymbol = dabMySymbol();
+        statusEl.textContent = mySymbol === dabCurrent ? "Your turn — claim a line!" : `Waiting for ${dabName(dabCurrent)}...`;
+    }
+}
+
+function dabUpdateScoreboard() {
+    const scoreArnold = document.getElementById('dab-score-arnold');
+    const scoreVaraidzo = document.getElementById('dab-score-varaidzo');
+    if (scoreArnold) scoreArnold.textContent = dabScores.X || 0;
+    if (scoreVaraidzo) scoreVaraidzo.textContent = dabScores.O || 0;
+}
+
+// Applies a snapshot received from Firebase — this is the ONLY place local
+// Dots & Boxes state changes, so both devices always render the same board.
+function dabApplyState(state) {
+    const lines = Array.isArray(state.lines) ? state.lines : Object.values(state.lines || {});
+    dabLines = Array.from({ length: 12 }, (_, i) => !!lines[i]);
+    const boxes = Array.isArray(state.boxes) ? state.boxes : Object.values(state.boxes || {});
+    dabBoxes = Array.from({ length: 4 }, (_, i) => boxes[i] || "");
+    dabCurrent = state.current || 'X';
+    dabScores = state.scores || { X: 0, O: 0 };
+
+    dabRender();
+    dabUpdateStatusText();
+    dabUpdateScoreboard();
+}
+
+function dabMove(lineIdx) {
+    if (!db || dabIsOver() || dabLines[lineIdx]) return;
+    const mySymbol = dabMySymbol();
+    if (!mySymbol || mySymbol !== dabCurrent) return; // not your turn, not a player
+
+    const lines = [...dabLines];
+    lines[lineIdx] = true;
+    const boxes = [...dabBoxes];
+    let claimedAny = false;
+
+    for (let box = 0; box < 4; box++) {
+        if (boxes[box]) continue;
+        if (dabBoxEdges(box).every(e => lines[e])) {
+            boxes[box] = mySymbol;
+            claimedAny = true;
+        }
+    }
+
+    set(ref(db, 'dotsAndBoxes'), {
+        lines,
+        boxes,
+        current: claimedAny ? mySymbol : (mySymbol === 'X' ? 'O' : 'X'), // completing a box earns another turn
+        scores: { X: boxes.filter(b => b === 'X').length, O: boxes.filter(b => b === 'O').length }
+    });
+}
+
+// Either partner can start a fresh round. Who moves first is randomized.
+function dabReset() {
+    if (!db) return;
+    set(ref(db, 'dotsAndBoxes'), { lines: Array(12).fill(false), boxes: Array(4).fill(""), current: dabRandomStart(), scores: { X: 0, O: 0 } });
+}
+
+function initDotsSync() {
+    if (!db) return;
+    onValue(ref(db, 'dotsAndBoxes'), (snap) => {
+        const state = snap.val();
+        if (!state) {
+            if (currentUser === 'Arnold') {
+                set(ref(db, 'dotsAndBoxes'), { lines: Array(12).fill(false), boxes: Array(4).fill(""), current: dabRandomStart(), scores: { X: 0, O: 0 } });
+            }
+            return;
+        }
+        dabApplyState(state);
+    });
+}
+
+document.getElementById('dab-reset')?.addEventListener('click', dabReset);
+dabRender();
 
 window.onload = () => {
     checkAuth();

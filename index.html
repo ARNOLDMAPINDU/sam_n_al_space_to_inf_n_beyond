@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <script>if(localStorage.getItem('sv')!=='10'){localStorage.setItem('sv','10');location.reload(true);}</script>
+    <script>if(localStorage.getItem('sv')!=='11'){localStorage.setItem('sv','11');location.reload(true);}</script>
     <title>Varaidzo & Arnold: Our Heartbeat</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
@@ -70,6 +70,7 @@
         <section class="mood-section">
             <h2>How are you feeling, my love?</h2>
             <div class="mood-selector">
+                <button class="mood-btn" data-mood="normal">🙂 Normal</button>
                 <button class="mood-btn" data-mood="happy">😊 Happy</button>
                 <button class="mood-btn" data-mood="missing">💖 Missing You</button>
                 <button class="mood-btn" data-mood="tired">😴 Tired</button>
@@ -77,10 +78,21 @@
                 <button class="mood-btn" data-mood="grumpy">😖 Grumpy</button>
                 <button class="mood-btn" data-mood="bored">🎬 Bored</button>
             </div>
-            
+
             <div class="custom-mood-area">
                 <input type="text" id="custom-mood-input" placeholder="Feeling something else? Type it here...">
                 <button id="custom-mood-btn" class="mini-btn">Share My Mood</button>
+            </div>
+
+            <!-- Feeling Chat — its own standalone conversation just about how
+                 you're each feeling, separate from the main chat and Game Chat. -->
+            <div class="feeling-chat">
+                <h4>Feeling Chat 💬</h4>
+                <div id="feeling-chat-messages" class="feeling-chat-messages"></div>
+                <div class="feeling-chat-input-area">
+                    <input type="text" id="feeling-chat-input" placeholder="Comment on how you're feeling..." />
+                    <button id="feeling-chat-send-btn" class="mini-btn">Send 💌</button>
+                </div>
             </div>
         </section>
 
@@ -211,6 +223,9 @@
                     <button class="game-tab active" data-game="tictactoe">❌⭕ Tic Tac Toe</button>
                     <button class="game-tab" data-game="memory">🃏 Memory Cards</button>
                     <button class="game-tab" data-game="puzzle">🧩 Slide Puzzle</button>
+                    <button class="game-tab" data-game="connect4">🔴🟡 Connect Four</button>
+                    <button class="game-tab" data-game="rps">✂️ Rock Paper Scissors</button>
+                    <button class="game-tab" data-game="dots">🔲 Dots &amp; Boxes</button>
                 </div>
 
                 <!-- Tic Tac Toe -->
@@ -247,6 +262,46 @@
                     <div class="game-footer">
                         <span>Moves: <strong id="puzzle-moves">0</strong></span>
                         <button id="puzzle-reset" class="mini-btn">Shuffle 🔀</button>
+                    </div>
+                </div>
+
+                <!-- Connect Four -->
+                <div id="game-connect4" class="game-panel hidden">
+                    <p id="c4-status" class="game-status">Arnold's turn (🔴)</p>
+                    <div id="c4-board" class="c4-board"></div>
+                    <button id="c4-reset" class="mini-btn ttt-reset-btn">New Game 🔄</button>
+                    <div class="ttt-score">
+                        <span>Arnold 🔴 <strong id="c4-score-arnold">0</strong></span>
+                        <span>Ties <strong id="c4-score-tie">0</strong></span>
+                        <span>Varaidzo 🟡 <strong id="c4-score-varaidzo">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Rock Paper Scissors -->
+                <div id="game-rps" class="game-panel hidden">
+                    <p id="rps-status" class="game-status">Pick your move! ✊✋✌️</p>
+                    <div class="rps-choices">
+                        <button class="rps-choice-btn" data-choice="rock">✊</button>
+                        <button class="rps-choice-btn" data-choice="paper">✋</button>
+                        <button class="rps-choice-btn" data-choice="scissors">✌️</button>
+                    </div>
+                    <div id="rps-result" class="rps-result"></div>
+                    <button id="rps-reset" class="mini-btn ttt-reset-btn">Next Round 🔄</button>
+                    <div class="ttt-score">
+                        <span>Arnold <strong id="rps-score-arnold">0</strong></span>
+                        <span>Ties <strong id="rps-score-tie">0</strong></span>
+                        <span>Varaidzo <strong id="rps-score-varaidzo">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Dots & Boxes -->
+                <div id="game-dots" class="game-panel hidden">
+                    <p id="dab-status" class="game-status">Arnold's turn</p>
+                    <div id="dab-board" class="dab-board"></div>
+                    <button id="dab-reset" class="mini-btn ttt-reset-btn">New Game 🔄</button>
+                    <div class="ttt-score">
+                        <span>Arnold <strong id="dab-score-arnold">0</strong></span>
+                        <span>Varaidzo <strong id="dab-score-varaidzo">0</strong></span>
                     </div>
                 </div>
 
@@ -361,6 +416,6 @@
     </div>
 
     <!-- Modern Firebase SDK -->
-    <script type="module" src="script.js?v=10"></script>
+    <script type="module" src="script.js?v=11"></script>
 </body>
 </html>
