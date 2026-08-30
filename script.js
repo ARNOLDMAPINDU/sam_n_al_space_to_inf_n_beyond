@@ -670,50 +670,212 @@ function displayMessage(msg) {
         scrollToMessage(msg.replyTo.id);
     });
 
-    // Swipe-to-reply (touch)
-    let tStartX = 0, tStartY = 0;
+    // Swipe-to-reply (touch), long-press-to-copy
+    let tStartX = 0, tStartY = 0, tLongPressTimer = null, tLongPressFired = false;
     msgDiv.addEventListener('touchstart', e => {
         tStartX = e.touches[0].clientX;
         tStartY = e.touches[0].clientY;
+        tLongPressFired = false;
+        clearTimeout(tLongPressTimer);
+        tLongPressTimer = setTimeout(() => {
+            tLongPressFired = true;
+            msgDiv.style.transform = '';
+            copyMessageBubble(msg, msgDiv);
+        }, 500);
     }, { passive: true });
     msgDiv.addEventListener('touchmove', e => {
         const dx = e.touches[0].clientX - tStartX;
         const dy = e.touches[0].clientY - tStartY;
-        if (Math.abs(dx) > Math.abs(dy) && dx > 0) {
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) clearTimeout(tLongPressTimer);
+        if (!tLongPressFired && Math.abs(dx) > Math.abs(dy) && dx > 0) {
             msgDiv.style.transform = `translateX(${Math.min(dx * 0.5, 70)}px)`;
         }
     }, { passive: true });
     msgDiv.addEventListener('touchend', e => {
+        clearTimeout(tLongPressTimer);
+        if (tLongPressFired) return;
         const dx = e.changedTouches[0].clientX - tStartX;
         msgDiv.style.transform = '';
         if (dx > 60) setReply(msg, msgId);
     });
 
-    // Swipe-to-reply (mouse / desktop)
-    let mStartX = 0, mDragging = false;
+    // Swipe-to-reply (mouse / desktop), long-press-to-copy (hold, or right-click)
+    let mStartX = 0, mDragging = false, mLongPressTimer = null, mLongPressFired = false;
     msgDiv.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
         mStartX = e.clientX;
         mDragging = true;
+        mLongPressFired = false;
+        clearTimeout(mLongPressTimer);
+        mLongPressTimer = setTimeout(() => {
+            mLongPressFired = true;
+            mDragging = false;
+            msgDiv.style.transform = '';
+            copyMessageBubble(msg, msgDiv);
+        }, 500);
     });
     msgDiv.addEventListener('mousemove', e => {
         if (!mDragging) return;
         const dx = e.clientX - mStartX;
+        if (Math.abs(dx) > 10) clearTimeout(mLongPressTimer);
         if (dx > 0) msgDiv.style.transform = `translateX(${Math.min(dx * 0.5, 70)}px)`;
     });
     msgDiv.addEventListener('mouseleave', () => {
+        clearTimeout(mLongPressTimer);
         if (mDragging) { msgDiv.style.transform = ''; mDragging = false; }
     });
     msgDiv.addEventListener('mouseup', e => {
+        clearTimeout(mLongPressTimer);
         if (!mDragging) return;
         const dx = e.clientX - mStartX;
         mDragging = false;
         msgDiv.style.transform = '';
+        if (mLongPressFired) return;
         if (dx > 60) setReply(msg, msgId);
     });
+    msgDiv.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        copyMessageBubble(msg, msgDiv);
+    });
 
+    // Only snap to the bottom if the reader was already near it (or it's their
+    // own message going out) — otherwise every incoming message yanks anyone
+    // reading older messages (e.g. while composing a reply) back down.
+    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
     container.appendChild(msgDiv);
-    container.scrollTop = container.scrollHeight;
+    if (nearBottom || msg.sender === currentUser) {
+        container.scrollTop = container.scrollHeight;
+    }
+
+    if (chatSearchInput?.value.trim()) filterChatMessages();
 }
+
+// ── Copy message bubble (long-press / right-click) ─────────────────────────
+function buildMessageCopyText(msg) {
+    const timeStr = formatMessageTime(msg.sentAt) || msg.timestamp || '';
+    const dateStr = msg.sentAt
+        ? new Date(msg.sentAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+        : '';
+    const when = [dateStr, timeStr].filter(Boolean).join(', ');
+    const body = msg.text
+        ? msg.text
+        : (msg.mediaType?.startsWith('image/') ? '[Photo]' : msg.mediaType?.startsWith('video/') ? '[Video]' : '');
+    return `${msg.sender}${when ? ' • ' + when : ''}\n${body}`;
+}
+
+function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+    return new Promise((resolve, reject) => {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            ok ? resolve() : reject(new Error('execCommand copy failed'));
+        } catch (err) { reject(err); }
+    });
+}
+
+let chatToastTimer = null;
+function showChatToast(text) {
+    let toast = document.getElementById('chat-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'chat-toast';
+        toast.className = 'chat-toast hidden';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = text;
+    toast.classList.remove('hidden');
+    clearTimeout(chatToastTimer);
+    chatToastTimer = setTimeout(() => toast.classList.add('hidden'), 1600);
+}
+
+function copyMessageBubble(msg, msgDiv) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    copyTextToClipboard(buildMessageCopyText(msg))
+        .then(() => {
+            msgDiv.classList.add('copied-flash');
+            setTimeout(() => msgDiv.classList.remove('copied-flash'), 500);
+            showChatToast('Message copied 📋');
+        })
+        .catch(() => showChatToast('Could not copy message'));
+}
+
+// ── Chat search ──────────────────────────────────────────────────────────
+const chatSearchInput = document.getElementById('chat-search-input');
+const chatSearchClearBtn = document.getElementById('chat-search-clear-btn');
+const chatSearchStatus = document.getElementById('chat-search-status');
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function highlightMatch(textEl, query) {
+    if (!textEl) return;
+    if (textEl.dataset.original === undefined) textEl.dataset.original = textEl.textContent;
+    const original = textEl.dataset.original;
+    const idx = original.toLowerCase().indexOf(query);
+    if (idx === -1) { textEl.textContent = original; return; }
+    const before = original.slice(0, idx);
+    const match = original.slice(idx, idx + query.length);
+    const after = original.slice(idx + query.length);
+    textEl.innerHTML = `${escapeHtml(before)}<mark class="search-match">${escapeHtml(match)}</mark>${escapeHtml(after)}`;
+}
+
+function clearHighlight(msgDiv) {
+    const textEl = msgDiv.querySelector('p');
+    if (textEl?.dataset.original !== undefined) textEl.textContent = textEl.dataset.original;
+}
+
+function filterChatMessages() {
+    const container = document.getElementById('chat-messages');
+    if (!container || !chatSearchInput) return;
+    const query = chatSearchInput.value.trim().toLowerCase();
+    const messages = container.querySelectorAll('.message');
+    const separators = container.querySelectorAll('.date-separator');
+
+    if (!query) {
+        messages.forEach(m => { m.classList.remove('search-hidden'); clearHighlight(m); });
+        separators.forEach(s => s.classList.remove('search-hidden'));
+        chatSearchClearBtn?.classList.add('hidden');
+        chatSearchStatus?.classList.add('hidden');
+        return;
+    }
+
+    chatSearchClearBtn?.classList.remove('hidden');
+    let matchCount = 0;
+    messages.forEach(m => {
+        const textEl = m.querySelector('p');
+        const text = (textEl?.textContent || textEl?.dataset.original || '').toLowerCase();
+        const isMatch = text.includes(query);
+        m.classList.toggle('search-hidden', !isMatch);
+        if (isMatch) { matchCount++; highlightMatch(textEl, query); }
+        else clearHighlight(m);
+    });
+    separators.forEach(s => s.classList.add('search-hidden'));
+
+    if (chatSearchStatus) {
+        chatSearchStatus.textContent = matchCount === 0
+            ? 'No messages found'
+            : `${matchCount} message${matchCount === 1 ? '' : 's'} found`;
+        chatSearchStatus.classList.remove('hidden');
+    }
+}
+
+chatSearchInput?.addEventListener('input', filterChatMessages);
+chatSearchClearBtn?.addEventListener('click', () => {
+    chatSearchInput.value = '';
+    filterChatMessages();
+    chatSearchInput.focus();
+});
 
 // ── Game Chat (its own separate conversation, stored apart from the main chat) ─
 function sendGameMessage() {
