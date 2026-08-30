@@ -646,7 +646,7 @@ function displayMessage(msg) {
     msgDiv.style.transition = 'transform 0.15s ease';
 
     const timeStr = formatMessageTime(msg.sentAt) || msg.timestamp || '';
-    let html = `<span class="sender-name">${msg.sender} • ${timeStr}</span>`;
+    let html = `<span class="msg-select-check">✓</span><span class="sender-name">${msg.sender} • ${timeStr}</span>`;
 
     if (msg.replyTo) {
         const preview = msg.replyTo.text
@@ -830,7 +830,11 @@ const chatSelectionCount = document.getElementById('chat-selection-count');
 
 function handleLongPress(msgId, msgDiv) {
     if (navigator.vibrate) navigator.vibrate(15);
-    if (!selectionMode) { selectionMode = true; cancelReply(); }
+    if (!selectionMode) {
+        selectionMode = true;
+        cancelReply();
+        document.getElementById('chat-messages')?.classList.add('selection-mode');
+    }
     toggleMessageSelection(msgId, msgDiv);
 }
 
@@ -857,7 +861,9 @@ function toggleMessageSelection(msgId, msgDiv) {
 function exitSelectionMode() {
     selectionMode = false;
     selectedMsgIds.clear();
-    document.querySelectorAll('#chat-messages .message.selected').forEach(el => el.classList.remove('selected'));
+    const container = document.getElementById('chat-messages');
+    container?.classList.remove('selection-mode');
+    container?.querySelectorAll('.message.selected').forEach(el => el.classList.remove('selected'));
     chatSelectionBar?.classList.add('hidden');
 }
 
