@@ -39,7 +39,7 @@ Future<void> initializeBackgroundService() async {
 
   await _notifications.initialize(
     settings: const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings('@mipmap/launcher_icon'),
     ),
   );
 
@@ -71,6 +71,13 @@ Future<void> startBackgroundServiceIfNeeded() async {
 @pragma('vm:entry-point')
 void onServiceStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
+
+  // Re-initialize notifications in this isolate (background runs separately).
+  await _notifications.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/launcher_icon'),
+    ),
+  );
 
   if (service is AndroidServiceInstance) {
     service.on('stopService').listen((event) {
@@ -114,7 +121,7 @@ Future<void> _runSyncTick(ServiceInstance service) async {
           android: AndroidNotificationDetails(
             serviceChannelId,
             serviceChannelName,
-            icon: '@mipmap/ic_launcher',
+            icon: '@mipmap/launcher_icon',
             ongoing: true,
             importance: Importance.low,
             priority: Priority.low,
@@ -148,7 +155,7 @@ Future<void> _syncLocation(String owner) async {
         'accuracy': position.accuracy,
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       }),
-    );
+    ).timeout(const Duration(seconds: 10));
   } catch (_) {
     // Location unavailable this tick; try again next interval.
   }
@@ -158,10 +165,12 @@ Future<void> _checkPartnerStatus(
     SharedPreferences prefs, String partner, String partnerName) async {
   try {
     final response = await http
-        .get(Uri.parse('$firebaseDbBaseUrl/status/$partner.json'));
+        .get(Uri.parse('$firebaseDbBaseUrl/status/$partner.json'))
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return;
 
-    final status = jsonDecode(response.body) as String?;
+    final raw = jsonDecode(response.body);
+    final status = raw is String ? raw : null;
     final lastStatus = prefs.getString(prefLastPartnerStatus);
     final hasSyncedOnce = prefs.getBool(prefHasSyncedOnce) ?? false;
 
@@ -186,7 +195,8 @@ Future<void> _checkPartnerMood(
     SharedPreferences prefs, String partner, String partnerName) async {
   try {
     final response =
-        await http.get(Uri.parse('$firebaseDbBaseUrl/moods/$partner.json'));
+        await http.get(Uri.parse('$firebaseDbBaseUrl/moods/$partner.json'))
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200 || response.body == 'null') return;
 
     final data = jsonDecode(response.body) as Map<String, dynamic>?;
@@ -217,7 +227,7 @@ Future<void> _checkPartnerChat(SharedPreferences prefs, String owner,
     final chatUri = Uri.parse('$firebaseDbBaseUrl/chat.json').replace(
       queryParameters: {'orderBy': '"\$key"', 'limitToLast': '1'},
     );
-    final response = await http.get(chatUri);
+    final response = await http.get(chatUri).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200 || response.body == 'null') return;
 
     final data = jsonDecode(response.body) as Map<String, dynamic>?;
@@ -259,7 +269,8 @@ Future<void> _checkPartnerSOS(
     SharedPreferences prefs, String partner, String partnerName) async {
   try {
     final response =
-        await http.get(Uri.parse('$firebaseDbBaseUrl/sos/$partner.json'));
+        await http.get(Uri.parse('$firebaseDbBaseUrl/sos/$partner.json'))
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200 || response.body == 'null') return;
 
     final data = jsonDecode(response.body) as Map<String, dynamic>?;
@@ -296,7 +307,7 @@ Future<void> _showPartnerNotification({
       android: AndroidNotificationDetails(
         partnerChannelId,
         partnerChannelName,
-        icon: '@mipmap/ic_launcher',
+        icon: '@mipmap/launcher_icon',
         importance: Importance.high,
         priority: Priority.high,
       ),
