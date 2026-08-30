@@ -68,6 +68,9 @@ let currentUser = "";
 let partnerName = "";
 let lastRenderedDate = null;
 let pendingReply = null;
+const messageStore = new Map();
+let selectionMode = false;
+const selectedMsgIds = new Set();
 let lastPartnerMood = null;
 
 // ── Mood ───────────────────────────────────────────────────────────────────
@@ -623,6 +626,7 @@ function displayMessage(msg) {
 
     const msgId = msg.sentAt || (msg.sender + (msg.text || msg.mediaUrl));
     if (document.getElementById('msg-' + msgId)) return;
+    messageStore.set(String(msgId), msg);
 
     // Date separator
     if (msg.sentAt) {
@@ -670,7 +674,10 @@ function displayMessage(msg) {
         scrollToMessage(msg.replyTo.id);
     });
 
-    // Swipe-to-reply (touch), long-press-to-copy
+    if (selectedMsgIds.has(String(msgId))) msgDiv.classList.add('selected');
+
+    // Swipe-to-reply (touch); long-press enters multi-select mode so several
+    // bubbles can be picked before copying them all together.
     let tStartX = 0, tStartY = 0, tLongPressTimer = null, tLongPressFired = false;
     msgDiv.addEventListener('touchstart', e => {
         tStartX = e.touches[0].clientX;
@@ -680,14 +687,14 @@ function displayMessage(msg) {
         tLongPressTimer = setTimeout(() => {
             tLongPressFired = true;
             msgDiv.style.transform = '';
-            copyMessageBubble(msg, msgDiv);
+            handleLongPress(msgId, msgDiv);
         }, 500);
     }, { passive: true });
     msgDiv.addEventListener('touchmove', e => {
         const dx = e.touches[0].clientX - tStartX;
         const dy = e.touches[0].clientY - tStartY;
         if (Math.abs(dx) > 10 || Math.abs(dy) > 10) clearTimeout(tLongPressTimer);
-        if (!tLongPressFired && Math.abs(dx) > Math.abs(dy) && dx > 0) {
+        if (!tLongPressFired && !selectionMode && Math.abs(dx) > Math.abs(dy) && dx > 0) {
             msgDiv.style.transform = `translateX(${Math.min(dx * 0.5, 70)}px)`;
         }
     }, { passive: true });
@@ -696,10 +703,15 @@ function displayMessage(msg) {
         if (tLongPressFired) return;
         const dx = e.changedTouches[0].clientX - tStartX;
         msgDiv.style.transform = '';
+        if (selectionMode) {
+            if (Math.abs(dx) < 10) toggleMessageSelection(msgId, msgDiv);
+            return;
+        }
         if (dx > 60) setReply(msg, msgId);
     });
 
-    // Swipe-to-reply (mouse / desktop), long-press-to-copy (hold, or right-click)
+    // Swipe-to-reply (mouse / desktop); long-press (hold) enters multi-select
+    // the same way touch does. Right-click stays a quick single-bubble copy.
     let mStartX = 0, mDragging = false, mLongPressTimer = null, mLongPressFired = false;
     msgDiv.addEventListener('mousedown', e => {
         if (e.button !== 0) return;
@@ -711,14 +723,14 @@ function displayMessage(msg) {
             mLongPressFired = true;
             mDragging = false;
             msgDiv.style.transform = '';
-            copyMessageBubble(msg, msgDiv);
+            handleLongPress(msgId, msgDiv);
         }, 500);
     });
     msgDiv.addEventListener('mousemove', e => {
         if (!mDragging) return;
         const dx = e.clientX - mStartX;
         if (Math.abs(dx) > 10) clearTimeout(mLongPressTimer);
-        if (dx > 0) msgDiv.style.transform = `translateX(${Math.min(dx * 0.5, 70)}px)`;
+        if (!selectionMode && dx > 0) msgDiv.style.transform = `translateX(${Math.min(dx * 0.5, 70)}px)`;
     });
     msgDiv.addEventListener('mouseleave', () => {
         clearTimeout(mLongPressTimer);
@@ -731,11 +743,16 @@ function displayMessage(msg) {
         mDragging = false;
         msgDiv.style.transform = '';
         if (mLongPressFired) return;
+        if (selectionMode) {
+            if (Math.abs(dx) < 10) toggleMessageSelection(msgId, msgDiv);
+            return;
+        }
         if (dx > 60) setReply(msg, msgId);
     });
     msgDiv.addEventListener('contextmenu', e => {
         e.preventDefault();
-        copyMessageBubble(msg, msgDiv);
+        if (selectionMode) toggleMessageSelection(msgId, msgDiv);
+        else copyMessageBubble(msg, msgDiv);
     });
 
     // Only snap to the bottom if the reader was already near it (or it's their
@@ -806,6 +823,63 @@ function copyMessageBubble(msg, msgDiv) {
         })
         .catch(() => showChatToast('Could not copy message'));
 }
+
+// ── Multi-select bubbles (copy several at once) ─────────────────────────────
+const chatSelectionBar = document.getElementById('chat-selection-bar');
+const chatSelectionCount = document.getElementById('chat-selection-count');
+
+function handleLongPress(msgId, msgDiv) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    if (!selectionMode) { selectionMode = true; cancelReply(); }
+    toggleMessageSelection(msgId, msgDiv);
+}
+
+function toggleMessageSelection(msgId, msgDiv) {
+    const id = String(msgId);
+    if (selectedMsgIds.has(id)) {
+        selectedMsgIds.delete(id);
+        msgDiv.classList.remove('selected');
+    } else {
+        selectedMsgIds.add(id);
+        msgDiv.classList.add('selected');
+    }
+    if (selectedMsgIds.size === 0) {
+        exitSelectionMode();
+    } else {
+        selectionMode = true;
+        chatSelectionBar?.classList.remove('hidden');
+        if (chatSelectionCount) {
+            chatSelectionCount.textContent = `${selectedMsgIds.size} selected`;
+        }
+    }
+}
+
+function exitSelectionMode() {
+    selectionMode = false;
+    selectedMsgIds.clear();
+    document.querySelectorAll('#chat-messages .message.selected').forEach(el => el.classList.remove('selected'));
+    chatSelectionBar?.classList.add('hidden');
+}
+
+document.getElementById('chat-selection-cancel-btn')?.addEventListener('click', exitSelectionMode);
+document.getElementById('chat-selection-copy-btn')?.addEventListener('click', () => {
+    const container = document.getElementById('chat-messages');
+    if (!container) return;
+    const orderedIds = Array.from(container.querySelectorAll('.message'))
+        .map(el => el.id.replace(/^msg-/, ''))
+        .filter(id => selectedMsgIds.has(id));
+    const texts = orderedIds
+        .map(id => messageStore.get(id))
+        .filter(Boolean)
+        .map(buildMessageCopyText);
+    if (!texts.length) { exitSelectionMode(); return; }
+    copyTextToClipboard(texts.join('\n\n'))
+        .then(() => {
+            showChatToast(`${texts.length} message${texts.length === 1 ? '' : 's'} copied 📋`);
+            exitSelectionMode();
+        })
+        .catch(() => showChatToast('Could not copy messages'));
+});
 
 // ── Chat search ──────────────────────────────────────────────────────────
 const chatSearchInput = document.getElementById('chat-search-input');
