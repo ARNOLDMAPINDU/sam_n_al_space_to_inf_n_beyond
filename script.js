@@ -897,6 +897,34 @@ document.getElementById('chat-selection-copy-btn')?.addEventListener('click', ()
         .catch(() => showChatToast('Could not copy messages'));
 });
 
+// ── Fullscreen chat (tap the expand icon, like opening a WhatsApp chat) ─────
+const chatContainerEl = document.querySelector('.chat-container');
+const chatExpandBtn = document.getElementById('chat-expand-btn');
+
+function setChatFullscreen(on) {
+    chatContainerEl?.classList.toggle('chat-fullscreen', on);
+    document.body.classList.toggle('chat-fullscreen-active', on);
+    if (chatExpandBtn) {
+        chatExpandBtn.textContent = on ? '✕' : '⛶';
+        chatExpandBtn.title = on ? 'Exit full screen' : 'Expand to full screen';
+    }
+    // Bubbles were sized for the small box; once the container resizes, jump
+    // back to the latest message instead of leaving the scroll position stuck
+    // wherever it happened to be.
+    const container = document.getElementById('chat-messages');
+    if (container) container.scrollTop = container.scrollHeight;
+}
+
+chatExpandBtn?.addEventListener('click', () => {
+    setChatFullscreen(!chatContainerEl?.classList.contains('chat-fullscreen'));
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && chatContainerEl?.classList.contains('chat-fullscreen')) {
+        setChatFullscreen(false);
+    }
+});
+
 // ── Chat search ──────────────────────────────────────────────────────────
 const chatSearchInput = document.getElementById('chat-search-input');
 const chatSearchClearBtn = document.getElementById('chat-search-clear-btn');

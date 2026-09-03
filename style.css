@@ -692,13 +692,44 @@ header {
     align-items: stretch;
 }
 
+/* Tap the expand icon to make the chat fill the whole screen, like WhatsApp */
+.chat-container.chat-fullscreen {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-width: none;
+    margin: 0;
+    border-radius: 0;
+    z-index: 500;
+}
+
+body.chat-fullscreen-active {
+    overflow: hidden;
+}
+
 .chat-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.6rem;
     margin-bottom: 1rem;
     border-bottom: 1px solid rgba(255,255,255,0.3);
     padding-bottom: 0.5rem;
+}
+
+.chat-expand-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
 }
 
 .chat-search-bar {
