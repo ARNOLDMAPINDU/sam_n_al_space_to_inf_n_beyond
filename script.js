@@ -71,6 +71,10 @@ let pendingReply = null;
 const messageStore = new Map();
 let selectionMode = false;
 const selectedMsgIds = new Set();
+// Touch devices fire synthetic "ghost" mouse events after real touch events,
+// which would otherwise double-toggle selection for a single tap. Mouse
+// handlers below bail out if a touch just happened.
+let lastTouchEnd = 0;
 let lastPartnerMood = null;
 
 // ── Mood ───────────────────────────────────────────────────────────────────
@@ -699,6 +703,7 @@ function displayMessage(msg) {
         }
     }, { passive: true });
     msgDiv.addEventListener('touchend', e => {
+        lastTouchEnd = Date.now();
         clearTimeout(tLongPressTimer);
         if (tLongPressFired) return;
         const dx = e.changedTouches[0].clientX - tStartX;
@@ -715,6 +720,7 @@ function displayMessage(msg) {
     let mStartX = 0, mDragging = false, mLongPressTimer = null, mLongPressFired = false;
     msgDiv.addEventListener('mousedown', e => {
         if (e.button !== 0) return;
+        if (Date.now() - lastTouchEnd < 500) return;
         mStartX = e.clientX;
         mDragging = true;
         mLongPressFired = false;
@@ -751,6 +757,10 @@ function displayMessage(msg) {
     });
     msgDiv.addEventListener('contextmenu', e => {
         e.preventDefault();
+        // On some Android WebViews, holding a bubble fires both our own
+        // touch long-press handling AND a native contextmenu event for the
+        // same gesture — skip this one if we already handled it via touch.
+        if (tLongPressFired) return;
         if (selectionMode) toggleMessageSelection(msgId, msgDiv);
         else copyMessageBubble(msg, msgDiv);
     });
