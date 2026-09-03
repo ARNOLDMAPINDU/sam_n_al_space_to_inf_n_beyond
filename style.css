@@ -896,10 +896,10 @@ body.chat-fullscreen-active {
 .chat-input-area {
     display: flex;
     gap: 0.8rem;
-    align-items: center;
+    align-items: flex-end;
     background: rgba(255, 255, 255, 0.2);
     padding: 0.5rem;
-    border-radius: 50px;
+    border-radius: 26px;
 }
 
 #media-btn {
@@ -929,12 +929,16 @@ body.chat-fullscreen-active {
 #chat-input {
     flex-grow: 1;
     padding: 0.8rem 1.2rem;
-    border-radius: 50px;
+    border-radius: 18px;
     border: none;
     background: transparent;
     outline: none;
     font-family: inherit;
     font-size: 0.95rem;
+    line-height: 1.4;
+    resize: none;
+    max-height: 140px;
+    overflow-y: auto;
 }
 
 .chat-input-area .mood-btn {

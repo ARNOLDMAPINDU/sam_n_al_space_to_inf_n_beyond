@@ -620,7 +620,10 @@ function sendMessage() {
     if (pendingReply) msgData.replyTo = pendingReply;
 
     push(ref(db, 'chat'), msgData)
-        .then(() => { if (inputEl) inputEl.value = ''; cancelReply(); })
+        .then(() => {
+            if (inputEl) { inputEl.value = ''; inputEl.style.height = 'auto'; }
+            cancelReply();
+        })
         .catch(err => console.error("Chat push error:", err));
 }
 
@@ -1086,7 +1089,19 @@ function scrollToMessage(msgId) {
 }
 
 document.getElementById('send-btn')?.addEventListener('click', sendMessage);
-document.getElementById('chat-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+const chatInputEl = document.getElementById('chat-input');
+chatInputEl?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+// Grow the box as the message wraps onto more lines instead of scrolling
+// sideways in a single-line field, capped by the #chat-input max-height.
+chatInputEl?.addEventListener('input', () => {
+    chatInputEl.style.height = 'auto';
+    chatInputEl.style.height = chatInputEl.scrollHeight + 'px';
+});
 document.getElementById('game-chat-send-btn')?.addEventListener('click', sendGameMessage);
 document.getElementById('game-chat-input')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendGameMessage(); });
 document.getElementById('feeling-chat-send-btn')?.addEventListener('click', sendFeelingMessage);
