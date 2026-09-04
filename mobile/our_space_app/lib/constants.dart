@@ -18,8 +18,10 @@ const String prefLastChatKey = 'last_chat_key';
 const String prefLastPartnerSosTimestamp = 'last_partner_sos_ts';
 const String prefHasSyncedOnce = 'has_synced_once';
 
-/// Background sync interval.
-const Duration backgroundSyncInterval = Duration(minutes: 10);
+/// Background sync interval. Runs inside a real foreground service (not
+/// WorkManager), so it isn't held to Android's 15-minute periodic-task
+/// floor — this can be as short as battery/data usage tolerates.
+const Duration backgroundSyncInterval = Duration(seconds: 30);
 
 /// Notification channel for partner activity alerts.
 const String partnerChannelId = 'our_space_partner_updates';
